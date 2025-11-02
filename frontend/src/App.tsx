@@ -12,8 +12,6 @@ function App() {
         <p>Hello Vite + React!</p>
         <p>
           <button onClick={async () => {
-            const res = await fetch("http://localhost:5000/user/5875765ufygfgdghd")
-            console.log(await res.json())
             setCount(count => count + 1)
           }}>count is: {count}</button>
         </p>
@@ -21,7 +19,7 @@ function App() {
           Edit <code>App.tsx</code> and save to test HMR updates.
         </p>
         <a
-          className="App-link"
+          className="App-link bg-red-500"
           href="https://reactjs.org"
           target="_blank"
           rel="noopener noreferrer"
