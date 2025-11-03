@@ -1,0 +1,18 @@
+{
+  "name": "mern-app",
+  "version": "1.0.0",
+  "scripts": {
+    "preinstall": "npx -y only-allow pnpm",
+    "bdev": "pnpm --filter express-app dev",
+    "fdev": "pnpm --filter vite-app dev"
+  },
+  "packageManager": "pnpm@10.14.0",
+  "type": "module",
+  "devDependencies": {
+    "@biomejs/biome": "2.3.3",
+    "@tsconfig/node23": "^23.0.2",
+    "@types/node": "^24.10.0",
+    "only-allow": "^1.2.1",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.3/schema.json",
+  "extends": "//",
+  "linter": {
+    "rules": {
+      "a11y": {
+        "useButtonType": "off"
+      },
+      "security": {
+        "noBlankTarget": "warn"
+      }
+    }
+  }
+}

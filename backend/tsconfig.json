@@ -1,17 +1,6 @@
 {
-  "extends": "@tsconfig/node23/tsconfig.json",
+  "extends": ["@tsconfig/node23/tsconfig.json", "../tsconfig.base.json"],
   "compilerOptions": {
-    "rootDir": ".",
-    "noEmit": true,
-    // Stricter Typechecking Options
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-
-    "strict": true,
-    "jsx": "react-jsx",
-    "verbatimModuleSyntax": true,
-    "isolatedModules": true,
-    "noUncheckedSideEffectImports": true,
-    "skipLibCheck": true
+    "rootDir": "."
   }
 }

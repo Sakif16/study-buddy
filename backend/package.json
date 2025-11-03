@@ -1,20 +1,13 @@
 {
-  "name": "study-buddy-backend",
-  "type": "module",
+  "name": "express-app",
+  "private": true,
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsx --watch app.ts",
-    "preinstall": "npx -y only-allow pnpm"
+    "dev": "tsx watch app.ts"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.12.3",
+  "packageManager": "pnpm@10.14.0",
+  "type": "module",
   "dependencies": {
-    "@supabase/supabase-js": "^2.78.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -23,16 +16,10 @@
     "morgan": "^1.10.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.2",
-    "@tsconfig/node23": "^23.0.2",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
     "@types/morgan": "^1.9.10",
-    "@types/node": "^24.9.2",
-    "only-allow": "^1.2.1",
-    "supabase": "^2.54.11",
-    "tsx": "^4.20.6",
-    "typescript": "^5.9.3"
+    "tsx": "^4.20.6"
   }
 }
