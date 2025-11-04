@@ -1,8 +1,8 @@
 export default function Home() {
   return (
-    <div className="p-8">
-      <h2 className="text-2xl font-semibold text-slate-900">Home</h2>
-      <p className="text-slate-700">Landing page (blank)</p>
+    <div className="p-8 text-white">
+      <h2 className="text-2xl font-semibold text-white">Home</h2>
+      <p className="text-white/90">Landing page (blank)</p>
     </div>
   )
 }

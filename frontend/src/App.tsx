@@ -15,7 +15,7 @@ import MissedTasks from "./pages/MissedTasks"
 function App() {
   return (
     <BrowserRouter>
-      <div className="app-root min-h-screen bg-white">
+      <div className="app-root min-h-screen bg-[#0DB19B] text-black">
         <Navbar />
 
         <main className="my-6 mx-auto py-0 px-4" style={{ maxWidth: 1100 }}>
