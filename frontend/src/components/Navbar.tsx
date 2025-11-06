@@ -4,14 +4,13 @@ import { NavLink } from "react-router-dom"
 const links = [
   { to: "/", label: "Home" },
   { to: "/assignments", label: "Assignments" },
-  { to: "/wordle", label: "Wordle" },
-  { to: "/streak", label: "Streak" },
-  { to: "/motivation", label: "Motivation" },
-  { to: "/group-study", label: "Group Study" },
-  { to: "/ai-buddy", label: "A.I Buddy" },
-  { to: "/charts", label: "Charts" },
   { to: "/notes", label: "Notes" },
+  { to: "/group-study", label: "Group Study" },
+  { to: "/motivation", label: "Motivation" },
+  { to: "/charts", label: "Charts" },
+  { to: "/streak", label: "Streak" },
   { to: "/missed-tasks", label: "Missed Tasks" },
+  { to: "/wordle", label: "Wordle" },
 ]
 
 export default function Navbar() {
@@ -19,9 +18,9 @@ export default function Navbar() {
 
   return (
     <header className="bg-[#DAF9EF] text-black">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/vite.svg" alt="logo" className="w-9 h-9" />
+          <img src="/vite.svg" alt="logo" className="w-12 h-12" />
           <span className="font-semibold text-lg">Study Buddy</span>
         </div>
 

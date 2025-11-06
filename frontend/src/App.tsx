@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import Navbar from "./components/Navbar"
+import Footer from "./components/Footer"
 
 import Home from "./pages/Home"
 import Assignments from "./pages/Assignments"
@@ -15,10 +16,13 @@ import MissedTasks from "./pages/MissedTasks"
 function App() {
   return (
     <BrowserRouter>
-      <div className="app-root min-h-screen bg-[#0DB19B] text-black">
+      <div className="app-root min-h-screen bg-[#0DB19B] text-black flex flex-col">
         <Navbar />
 
-        <main className="my-6 mx-auto py-0 px-4" style={{ maxWidth: 1100 }}>
+        <main
+          className="flex-1 my-6 mx-auto py-0 px-4"
+          style={{ maxWidth: 1100 }}
+        >
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/assignments" element={<Assignments />} />
@@ -32,6 +36,7 @@ function App() {
             <Route path="/missed-tasks" element={<MissedTasks />} />
           </Routes>
         </main>
+        <Footer />
       </div>
     </BrowserRouter>
   )
