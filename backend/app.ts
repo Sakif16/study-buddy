@@ -7,6 +7,7 @@ import helmet from "helmet"
 import logger from "morgan"
 
 import "dotenv/config"
+import { db } from "./db.js"
 
 const app = express()
 const PORT = parseInt(process.env.PORT ?? "3000")
@@ -26,7 +27,9 @@ app.listen(PORT, () => {
   console.log(`express-app listening on port ${PORT}`)
 })
 
-app.get("/", (_, res) => {
-  res.contentType("text/plain")
-  res.send("hello world")
+app.get("/:movie", async (req, res) => {
+  const { movie } = req.params
+
+  const findings = await db.collection("Movies").findOne({ name: movie })
+  res.json(findings)
 })
