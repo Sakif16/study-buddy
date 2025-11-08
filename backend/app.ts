@@ -1,12 +1,13 @@
 import path from "node:path"
 
+import "dotenv/config"
+
 import cookieParser from "cookie-parser"
 import cors from "cors"
 import express from "express"
 import helmet from "helmet"
 import logger from "morgan"
 
-import "dotenv/config"
 import { db } from "./db.js"
 
 const app = express()
@@ -30,6 +31,12 @@ app.listen(PORT, () => {
 app.get("/:movie", async (req, res) => {
   const { movie } = req.params
 
-  const findings = await db.collection("Movies").findOne({ name: movie })
+  const findings = await db
+    .collection("movies")
+    .find({ genres: "Western" })
+    .project({ _id: 0, title: 1 })
+    .limit(3)
+    .toArray()
+
   res.json(findings)
 })
