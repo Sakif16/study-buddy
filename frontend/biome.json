@@ -6,6 +6,9 @@
       "a11y": {
         "useButtonType": "off"
       },
+      "suspicious": {
+        "noArrayIndexKey": "off"
+      },
       "security": {
         "noBlankTarget": "warn"
       }
