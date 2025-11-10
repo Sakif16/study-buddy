@@ -1,4 +1,5 @@
 import type React from "react"
+import { useEffect } from "react"
 
 interface KeyboardProps {
   onKeyPress: (key: string) => void
@@ -11,6 +12,33 @@ const KEYS = [
 ]
 
 const Keyboard: React.FC<KeyboardProps> = ({ onKeyPress }) => {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toUpperCase()
+
+      // Handle regular letters
+      if (/^[A-Z]$/.test(key)) {
+        onKeyPress(key)
+      }
+      // Handle Backspace/Delete
+      else if (key === "BACKSPACE" || key === "DELETE") {
+        onKeyPress("DEL")
+      }
+      // Handle Enter
+      else if (key === "ENTER") {
+        onKeyPress("ENTER")
+      }
+    }
+
+    // Add keyboard listener
+    window.addEventListener("keydown", handleKeyDown)
+
+    // Cleanup
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [onKeyPress])
+
   return (
     <div className="mt-4 flex flex-col gap-2 items-center">
       {KEYS.map((row, i) => (
