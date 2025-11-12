@@ -13,22 +13,32 @@ type Task = {
   id: string
   title: string
   notes?: string
-  date: string // YYYY-MM-DD
+  createdDate: string // dd/mm/yyyy
+  dueDate?: string // dd/mm/yyyy
   completed?: boolean
   dueTime?: string
 }
 
-const STORAGE_KEY = "study-buddy.tasks.v1"
+const STORAGE_KEY = "study-buddy.tasks.v2"
 
 function uid() {
   return Math.random().toString(36).slice(2, 9)
 }
 
-function formatDateISO(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
+function formatDateDisplay(d: Date) {
   const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const y = d.getFullYear()
+  return `${day}/${m}/${y}`
+}
+
+function parseDisplayToDate(str: string) {
+  const [day, month, year] = str.split("/").map(Number) as [
+    number,
+    number,
+    number,
+  ]
+  return new Date(year, month - 1, day)
 }
 
 function startOfMonth(date: Date) {
@@ -37,19 +47,8 @@ function startOfMonth(date: Date) {
 function endOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0)
 }
-
 function monthName(date: Date) {
   return date.toLocaleString(undefined, { month: "long", year: "numeric" })
-}
-
-// display helper: convert YYYY-MM-DD to DD-MM-YYYY (also leaves DD-MM-YYYY unchanged)
-function formatDisplayFromISO(dateStr: string) {
-  const parts = dateStr.split("-")
-  if (parts.length !== 3) return dateStr
-  // if ISO (YYYY-MM-DD)
-  if (parts[0]!.length === 4) return `${parts[2]}-${parts[1]}-${parts[0]}`
-  // already DD-MM-YYYY
-  return dateStr
 }
 
 export default function Home() {
@@ -57,7 +56,7 @@ export default function Home() {
     startOfMonth(new Date()),
   )
   const [selectedDate, setSelectedDate] = useState<string>(() =>
-    formatDateISO(new Date()),
+    formatDateDisplay(new Date()),
   )
   const [tasks, setTasks] = useState<Task[]>([])
   const [editing, setEditing] = useState<Task | null>(null)
@@ -79,47 +78,47 @@ export default function Home() {
   const daysGrid = useMemo(() => {
     const start = startOfMonth(currentMonth)
     const end = endOfMonth(currentMonth)
-    const firstWeekDay = start.getDay() // 0 (Sun) - 6 (Sat)
+    const firstWeekDay = start.getDay()
     const cells: Date[] = []
 
-    // backfill previous month days
     for (let i = firstWeekDay - 1; i >= 0; i--) {
       const d = new Date(start)
       d.setDate(start.getDate() - (i + 1))
       cells.push(d)
     }
-
-    // current month
     for (let d = 1; d <= end.getDate(); d++) {
       cells.push(
         new Date(currentMonth.getFullYear(), currentMonth.getMonth(), d),
       )
     }
-
-    // fill to full weeks (42 cells max)
     while (cells.length % 7 !== 0) {
       const last = cells[cells.length - 1]
       const n = new Date(last!)
       n.setDate(last!.getDate() + 1)
       cells.push(n)
     }
-
     return cells
   }, [currentMonth])
 
-  function tasksForDate(dateISO: string) {
-    return tasks.filter((t) => t.date === dateISO)
+  // --- Updated helper: filter tasks by dueDate instead of createdDate ---
+  function tasksForDueDate(dateStr: string) {
+    return tasks.filter((t) => t.dueDate === dateStr)
   }
 
   function changeMonth(offset: number) {
     const d = new Date(currentMonth)
     d.setMonth(d.getMonth() + offset)
     setCurrentMonth(startOfMonth(d))
-    setSelectedDate(formatDateISO(startOfMonth(d)))
+    setSelectedDate(formatDateDisplay(startOfMonth(d)))
   }
 
-  function onCreate(dateISO: string) {
-    setEditing({ id: uid(), title: "", date: dateISO })
+  function onCreate(dateDisplay: string) {
+    setEditing({
+      id: uid(),
+      title: "",
+      createdDate: dateDisplay,
+      dueDate: "",
+    })
     setShowForm(true)
   }
 
@@ -147,15 +146,20 @@ export default function Home() {
     )
   }
 
-  // Monthly summary
   const summary = useMemo(() => {
-    const start = formatDateISO(startOfMonth(currentMonth))
-    const end = formatDateISO(endOfMonth(currentMonth))
-    const inMonth = tasks.filter((t) => t.date >= start && t.date <= end)
+    const start = formatDateDisplay(startOfMonth(currentMonth))
+    const end = formatDateDisplay(endOfMonth(currentMonth))
+    const startDate = parseDisplayToDate(start)
+    const endDate = parseDisplayToDate(end)
+    const inMonth = tasks.filter((t) => {
+      const dd = t.dueDate ? parseDisplayToDate(t.dueDate) : null
+      return dd && dd >= startDate && dd <= endDate
+    })
     const total = inMonth.length
     const completed = inMonth.filter((t) => t.completed).length
     const overdue = inMonth.filter(
-      (t) => !t.completed && t.date < formatDateISO(new Date()),
+      (t) =>
+        !t.completed && t.dueDate && parseDisplayToDate(t.dueDate) < new Date(),
     ).length
     return { total, completed, overdue }
   }, [tasks, currentMonth])
@@ -215,22 +219,22 @@ export default function Home() {
 
           <div className="grid grid-cols-7 gap-2">
             {daysGrid.map((d) => {
-              const iso = formatDateISO(d)
+              const display = formatDateDisplay(d)
               const inCurrentMonth = d.getMonth() === currentMonth.getMonth()
-              const isToday = iso === formatDateISO(new Date())
-              const dateTasks = tasksForDate(iso)
+              const isToday = display === formatDateDisplay(new Date())
+              const dateTasks = tasksForDueDate(display)
               return (
                 <button
-                  key={iso}
-                  onClick={() => {
-                    setSelectedDate(iso)
-                  }}
+                  key={display}
+                  onClick={() => setSelectedDate(display)}
                   className={
                     "p-2 h-20 text-left rounded border " +
                     (inCurrentMonth
                       ? "bg-white/5"
                       : "bg-transparent text-black/30") +
-                    (selectedDate === iso ? " ring-2 ring-indigo-300" : "") +
+                    (selectedDate === display
+                      ? " ring-2 ring-indigo-300"
+                      : "") +
                     (isToday ? " border-indigo-400" : "")
                   }
                 >
@@ -265,36 +269,31 @@ export default function Home() {
               className="px-3 py-1 bg-green-600 text-white rounded"
               onClick={() => onCreate(selectedDate)}
             >
-              {/* Create task on {selectedDate} */}
-              Create task on {formatDisplayFromISO(selectedDate)}
+              Create task on {selectedDate}
             </button>
           </div>
         </div>
 
-        {/* Tasks list / editor */}
+        {/* Tasks list */}
         <div className="bg-[rgb(188,248,238)] p-4 rounded text-black">
           <div className="flex items-center justify-between mb-2">
-            {/* <h3 className="font-semibold">Tasks — {selectedDate}</h3> */}
-            <h3 className="font-semibold">
-              Tasks — {formatDisplayFromISO(selectedDate)}
-            </h3>
+            <h3 className="font-semibold">Tasks — {selectedDate}</h3>
             <button
               className="px-2 py-1 bg-[#0DB19B] rounded text-black ml-3"
-              onClick={() => onCreate(formatDisplayFromISO(selectedDate))}
+              onClick={() => onCreate(selectedDate)}
             >
               + New
             </button>
           </div>
 
           <div className="space-y-2">
-            {tasksForDate(formatDisplayFromISO(selectedDate)).length === 0 && (
+            {tasksForDueDate(selectedDate).length === 0 && (
               <div className="text-sm text-black/50">
                 No tasks for this date.
               </div>
             )}
-
-            {tasksForDate(formatDisplayFromISO(selectedDate))
-              .sort((a, b) => (a.dueTime || "").localeCompare(b.dueTime || ""))
+            {tasksForDueDate(selectedDate)
+              .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
               .map((t) => (
                 <div
                   key={t.id}
@@ -321,9 +320,9 @@ export default function Home() {
                         {t.notes}
                       </div>
                     )}
-                    {t.dueTime && (
+                    {t.dueDate && (
                       <div className="text-xs text-black/50 mt-1">
-                        Time: {t.dueTime}
+                        Due: {t.dueDate}
                       </div>
                     )}
                   </div>
@@ -348,7 +347,6 @@ export default function Home() {
               ))}
           </div>
 
-          {/* Inline form */}
           {showForm && (
             <div className="mt-4 p-3 bg-white/6 rounded border">
               <TaskForm
@@ -356,7 +354,8 @@ export default function Home() {
                   editing ?? {
                     id: uid(),
                     title: "",
-                    date: formatDisplayFromISO(selectedDate),
+                    createdDate: formatDateDisplay(new Date()),
+                    dueDate: selectedDate,
                   }
                 }
                 onCancel={() => {
@@ -373,7 +372,6 @@ export default function Home() {
   )
 }
 
-/* Simple TaskForm component */
 function TaskForm({
   initial,
   onSave,
@@ -385,10 +383,11 @@ function TaskForm({
 }) {
   const [title, setTitle] = useState(initial.title || "")
   const [notes, setNotes] = useState(initial.notes || "")
-  const [date, setDate] = useState(initial.date || formatDateISO(new Date()))
+  const [dueDate, setDueDate] = useState(initial.dueDate || "")
   const [time, setTime] = useState(initial.dueTime || "")
   const [completed, setCompleted] = useState(!!initial.completed)
   const id = (initial as Task).id || uid()
+  const createdDate = initial.createdDate!
 
   return (
     <form
@@ -398,7 +397,8 @@ function TaskForm({
           id,
           title: title.trim(),
           notes: notes.trim(),
-          date,
+          createdDate,
+          dueDate,
           dueTime: time,
           completed,
         })
@@ -413,15 +413,25 @@ function TaskForm({
           onChange={(e) => setTitle(e.target.value)}
         />
       </div>
+      <div>
+        <label className="text-sm block">Created Date</label>
+        <input
+          className="w-full rounded px-2 py-1 border border-black/45 bg-gray-100"
+          value={createdDate}
+          disabled
+        />
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-sm block">Date</label>
+          <label className="text-sm block">Due Date</label>
           <input
             type="date"
-            lang="en-GB"
             className="w-full rounded px-2 py-1"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
+            value={dueDate ? dueDate.split("/").reverse().join("-") : ""}
+            onChange={(e) => {
+              const [y, m, d] = e.target.value.split("-")
+              setDueDate(`${d}/${m}/${y}`)
+            }}
           />
         </div>
         <div>
