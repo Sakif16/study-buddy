@@ -7,7 +7,6 @@
 //   )
 // }
 
-
 import { useEffect, useMemo, useState } from "react"
 
 type Task = {
@@ -34,7 +33,11 @@ function formatDateDisplay(d: Date) {
 }
 
 function parseDisplayToDate(str: string) {
-  const [day, month, year] = str.split("/").map(Number)
+  const [day, month, year] = str.split("/").map(Number) as [
+    number,
+    number,
+    number,
+  ]
   return new Date(year, month - 1, day)
 }
 
@@ -49,8 +52,12 @@ function monthName(date: Date) {
 }
 
 export default function Home() {
-  const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()))
-  const [selectedDate, setSelectedDate] = useState<string>(() => formatDateDisplay(new Date()))
+  const [currentMonth, setCurrentMonth] = useState(() =>
+    startOfMonth(new Date()),
+  )
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    formatDateDisplay(new Date()),
+  )
   const [tasks, setTasks] = useState<Task[]>([])
   const [editing, setEditing] = useState<Task | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -80,12 +87,14 @@ export default function Home() {
       cells.push(d)
     }
     for (let d = 1; d <= end.getDate(); d++) {
-      cells.push(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), d))
+      cells.push(
+        new Date(currentMonth.getFullYear(), currentMonth.getMonth(), d),
+      )
     }
     while (cells.length % 7 !== 0) {
       const last = cells[cells.length - 1]
-      const n = new Date(last)
-      n.setDate(last.getDate() + 1)
+      const n = new Date(last!)
+      n.setDate(last!.getDate() + 1)
       cells.push(n)
     }
     return cells
@@ -132,7 +141,9 @@ export default function Home() {
   }
 
   function toggleComplete(id: string) {
-    setTasks((prev) => prev.map((p) => (p.id === id ? { ...p, completed: !p.completed } : p)))
+    setTasks((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, completed: !p.completed } : p)),
+    )
   }
 
   const summary = useMemo(() => {
@@ -147,7 +158,8 @@ export default function Home() {
     const total = inMonth.length
     const completed = inMonth.filter((t) => t.completed).length
     const overdue = inMonth.filter(
-      (t) => !t.completed && t.dueDate && parseDisplayToDate(t.dueDate) < new Date()
+      (t) =>
+        !t.completed && t.dueDate && parseDisplayToDate(t.dueDate) < new Date(),
     ).length
     return { total, completed, overdue }
   }, [tasks, currentMonth])
@@ -161,14 +173,35 @@ export default function Home() {
         </div>
         <div className="flex gap-3 items-center">
           <div className="text-sm text-black/70">
-            <div>Total: <strong>{summary.total}</strong></div>
-            <div>Completed: <strong>{summary.completed}</strong></div>
-            <div>Overdue: <strong>{summary.overdue}</strong></div>
+            <div>
+              Total: <strong>{summary.total}</strong>
+            </div>
+            <div>
+              Completed: <strong>{summary.completed}</strong>
+            </div>
+            <div>
+              Overdue: <strong>{summary.overdue}</strong>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1 bg-white/80 rounded shadow-sm" onClick={() => changeMonth(-1)}>Prev</button>
-            <button className="px-3 py-1 bg-white/80 rounded shadow-sm" onClick={() => setCurrentMonth(startOfMonth(new Date()))}>Today</button>
-            <button className="px-3 py-1 bg-white/80 rounded shadow-sm" onClick={() => changeMonth(1)}>Next</button>
+            <button
+              className="px-3 py-1 bg-white/80 rounded shadow-sm"
+              onClick={() => changeMonth(-1)}
+            >
+              Prev
+            </button>
+            <button
+              className="px-3 py-1 bg-white/80 rounded shadow-sm"
+              onClick={() => setCurrentMonth(startOfMonth(new Date()))}
+            >
+              Today
+            </button>
+            <button
+              className="px-3 py-1 bg-white/80 rounded shadow-sm"
+              onClick={() => changeMonth(1)}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
@@ -178,7 +211,9 @@ export default function Home() {
         <div className="col-span-1 md:col-span-2 bg-[rgb(188,248,238)] p-4 rounded text-black">
           <div className="grid grid-cols-7 gap-2 text-center mb-2 text-sm text-black/80">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} className="font-medium">{d}</div>
+              <div key={d} className="font-medium">
+                {d}
+              </div>
             ))}
           </div>
 
@@ -194,8 +229,12 @@ export default function Home() {
                   onClick={() => setSelectedDate(display)}
                   className={
                     "p-2 h-20 text-left rounded border " +
-                    (inCurrentMonth ? "bg-white/5" : "bg-transparent text-black/30") +
-                    (selectedDate === display ? " ring-2 ring-indigo-300" : "") +
+                    (inCurrentMonth
+                      ? "bg-white/5"
+                      : "bg-transparent text-black/30") +
+                    (selectedDate === display
+                      ? " ring-2 ring-indigo-300"
+                      : "") +
                     (isToday ? " border-indigo-400" : "")
                   }
                 >
@@ -209,7 +248,13 @@ export default function Home() {
                   </div>
                   <div className="mt-2 text-xs space-y-1 overflow-hidden h-12">
                     {dateTasks.slice(0, 3).map((t) => (
-                      <div key={t.id} className={"truncate " + (t.completed ? "line-through text-black/40" : "")}>
+                      <div
+                        key={t.id}
+                        className={
+                          "truncate " +
+                          (t.completed ? "line-through text-black/40" : "")
+                        }
+                      >
                         {t.title || "(no title)"}
                       </div>
                     ))}
@@ -220,7 +265,10 @@ export default function Home() {
           </div>
 
           <div className="mt-3 flex justify-end">
-            <button className="px-3 py-1 bg-green-600 text-white rounded" onClick={() => onCreate(selectedDate)}>
+            <button
+              className="px-3 py-1 bg-green-600 text-white rounded"
+              onClick={() => onCreate(selectedDate)}
+            >
               Create task on {selectedDate}
             </button>
           </div>
@@ -230,30 +278,70 @@ export default function Home() {
         <div className="bg-[rgb(188,248,238)] p-4 rounded text-black">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold">Tasks — {selectedDate}</h3>
-            <button className="px-2 py-1 bg-[#0DB19B] rounded text-black ml-3" onClick={() => onCreate(selectedDate)}>+ New</button>
+            <button
+              className="px-2 py-1 bg-[#0DB19B] rounded text-black ml-3"
+              onClick={() => onCreate(selectedDate)}
+            >
+              + New
+            </button>
           </div>
 
           <div className="space-y-2">
             {tasksForDueDate(selectedDate).length === 0 && (
-              <div className="text-sm text-black/50">No tasks for this date.</div>
+              <div className="text-sm text-black/50">
+                No tasks for this date.
+              </div>
             )}
             {tasksForDueDate(selectedDate)
               .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
               .map((t) => (
-                <div key={t.id} className="p-2 bg-white/5 rounded flex justify-between items-start">
+                <div
+                  key={t.id}
+                  className="p-2 bg-white/5 rounded flex justify-between items-start"
+                >
                   <div>
                     <div className="flex items-center gap-2">
-                      <input type="checkbox" checked={!!t.completed} onChange={() => toggleComplete(t.id)} />
-                      <div className={"font-medium " + (t.completed ? "line-through text-black/40" : "")}>
+                      <input
+                        type="checkbox"
+                        checked={!!t.completed}
+                        onChange={() => toggleComplete(t.id)}
+                      />
+                      <div
+                        className={
+                          "font-medium " +
+                          (t.completed ? "line-through text-black/40" : "")
+                        }
+                      >
                         {t.title || "(no title)"}
                       </div>
                     </div>
-                    {t.notes && <div className="text-xs text-black/60 mt-1">{t.notes}</div>}
-                    {t.dueDate && <div className="text-xs text-black/50 mt-1">Due: {t.dueDate}</div>}
+                    {t.notes && (
+                      <div className="text-xs text-black/60 mt-1">
+                        {t.notes}
+                      </div>
+                    )}
+                    {t.dueDate && (
+                      <div className="text-xs text-black/50 mt-1">
+                        Due: {t.dueDate}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col gap-1">
-                    <button className="text-sm px-2 py-1 bg-white/20 rounded" onClick={() => { setEditing(t); setShowForm(true); }}>Edit</button>
-                    <button className="text-sm px-2 py-1 bg-red-600 text-white rounded" onClick={() => removeTask(t.id)}>Delete</button>
+                    <button
+                      className="text-sm px-2 py-1 bg-white/20 rounded"
+                      onClick={() => {
+                        setEditing(t)
+                        setShowForm(true)
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="text-sm px-2 py-1 bg-red-600 text-white rounded"
+                      onClick={() => removeTask(t.id)}
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               ))}
@@ -262,8 +350,18 @@ export default function Home() {
           {showForm && (
             <div className="mt-4 p-3 bg-white/6 rounded border">
               <TaskForm
-                initial={editing ?? { id: uid(), title: "", createdDate: formatDateDisplay(new Date()), dueDate: selectedDate }}
-                onCancel={() => { setShowForm(false); setEditing(null); }}
+                initial={
+                  editing ?? {
+                    id: uid(),
+                    title: "",
+                    createdDate: formatDateDisplay(new Date()),
+                    dueDate: selectedDate,
+                  }
+                }
+                onCancel={() => {
+                  setShowForm(false)
+                  setEditing(null)
+                }}
                 onSave={(t) => saveTask(t)}
               />
             </div>
@@ -295,17 +393,33 @@ function TaskForm({
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        onSave({ id, title: title.trim(), notes: notes.trim(), createdDate, dueDate, dueTime: time, completed })
+        onSave({
+          id,
+          title: title.trim(),
+          notes: notes.trim(),
+          createdDate,
+          dueDate,
+          dueTime: time,
+          completed,
+        })
       }}
       className="space-y-2"
     >
       <div>
         <label className="text-sm block">Title</label>
-        <input className="w-full rounded px-2 py-1 border border-black/45" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input
+          className="w-full rounded px-2 py-1 border border-black/45"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
       </div>
       <div>
         <label className="text-sm block">Created Date</label>
-        <input className="w-full rounded px-2 py-1 border border-black/45 bg-gray-100" value={createdDate} disabled />
+        <input
+          className="w-full rounded px-2 py-1 border border-black/45 bg-gray-100"
+          value={createdDate}
+          disabled
+        />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
@@ -322,24 +436,48 @@ function TaskForm({
         </div>
         <div>
           <label className="text-sm block">Time</label>
-          <input type="time" className="w-full rounded px-2 py-1" value={time} onChange={(e) => setTime(e.target.value)} />
+          <input
+            type="time"
+            className="w-full rounded px-2 py-1"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+          />
         </div>
       </div>
       <div>
         <label className="text-sm block">Notes</label>
-        <textarea className="w-full rounded px-2 py-1 border border-black/45" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <textarea
+          className="w-full rounded px-2 py-1 border border-black/45"
+          rows={3}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
       </div>
       <div className="flex items-center gap-3">
         <label className="flex items-center gap-2">
-          <input type="checkbox" checked={completed} onChange={(e) => setCompleted(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={completed}
+            onChange={(e) => setCompleted(e.target.checked)}
+          />
           <span className="text-sm">Completed</span>
         </label>
         <div className="flex-1 text-right">
-          <button type="button" className="px-3 py-1 mr-2 bg-white/20 rounded" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="px-3 py-1 bg-green-600 text-white rounded">Save</button>
+          <button
+            type="button"
+            className="px-3 py-1 mr-2 bg-white/20 rounded"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-3 py-1 bg-green-600 text-white rounded"
+          >
+            Save
+          </button>
         </div>
       </div>
     </form>
   )
 }
-

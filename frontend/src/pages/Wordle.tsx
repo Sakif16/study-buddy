@@ -4,7 +4,7 @@ import WordleGrid from "../components/WordleGrid"
 import Keyboard from "../components/Keyboard"
 import { WORD_LIST } from "../data/words"
 
-const MAX_GAMES_PER_DAY = 5
+const MAX_GAMES_PER_DAY = 100
 
 const getRandomWord = () =>
   WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)]
@@ -76,6 +76,18 @@ const Wordle: React.FC = () => {
       setMessage("You've reached your daily limit!")
       return
     }
+
+    // If the game was already finished (win/lose), do not double-count the play
+    if (message.startsWith("You won") || message.startsWith("You lost")) {
+      setGuesses([])
+      setCurrentGuess("")
+      setMessage("")
+      setTargetWord(getRandomWord())
+      return
+    }
+
+    // Consume one of the daily attempts when manually restarting mid-game
+    updatePlayCount(gamesPlayed + 1)
     setGuesses([])
     setCurrentGuess("")
     setMessage("")
