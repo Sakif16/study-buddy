@@ -4,7 +4,7 @@ import WordleGrid from "../components/WordleGrid"
 import Keyboard from "../components/Keyboard"
 import { WORD_LIST } from "../data/words"
 
-const MAX_GAMES_PER_DAY = 100
+const MAX_GAMES_PER_DAY = 5
 
 const getRandomWord = () =>
   WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)]
@@ -96,7 +96,7 @@ const Wordle: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center p-4">
-      <h1 className="text-3xl font-bold mb-2">Wordle Clone</h1>
+      <h1 className="text-3xl font-bold mb-2">Wordle mini</h1>
       <p className="text-gray-600 mb-4">
         Games played today: {gamesPlayed}/{MAX_GAMES_PER_DAY}
       </p>
