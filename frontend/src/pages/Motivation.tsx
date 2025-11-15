@@ -1,218 +1,334 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function Motivation() {
-  // Pomodoro settings (minutes)
-  const [workMinutes, setWorkMinutes] = useState<number>(25);
-  const [breakMinutes, setBreakMinutes] = useState<number>(5);
+	// Pomodoro settings (minutes)
+	const [workMinutes, setWorkMinutes] = useState<number>(25);
+	const [breakMinutes, setBreakMinutes] = useState<number>(5);
 
-  // Timer state (seconds)
-  const [isWork, setIsWork] = useState<boolean>(true);
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  // initialize timeLeft using a function (avoids linter/type warnings)
-  const [timeLeft, setTimeLeft] = useState<number>(() => workMinutes * 60);
+	// Timer state (seconds)
+	const [isWork, setIsWork] = useState<boolean>(true);
+	const [isRunning, setIsRunning] = useState<boolean>(false);
+	// track whether user has started the timer at least once
+	const [hasStarted, setHasStarted] = useState<boolean>(false);
+	// initialize timeLeft using a function (avoids linter/type warnings)
+	const [timeLeft, setTimeLeft] = useState<number>(() => workMinutes * 60);
 
-  // Quotes
-  const quotes = useRef<string[]>([
-    "Start where you are. Use what you have. Do what you can. — Arthur Ashe",
-    "Don't watch the clock; do what it does. Keep going. — Sam Levenson",
-    "Little by little, a little becomes a lot. — Tanzanian Proverb",
-    "You don't have to be great to start, but you have to start to be great. — Zig Ziglar",
-    "Discipline is choosing between what you want now and what you want most. — Abraham Lincoln",
-    "Success is the sum of small efforts repeated day in and day out. — Robert Collier",
-    "Take it easy but take it. — John Burroughs",
-    "Focus on being productive instead of busy. — Tim Ferriss",
-  ]);
+	// Quotes (short, single-line)
+	const quotes = useRef<string[]>([
+		"Start where you are. - Arthur Ashe",
+		"Keep going. - Sam Levenson",
+		"Start to be great. - Zig Ziglar",
+		"Choose discipline. - Abraham Lincoln",
+		"Repeat small efforts. - Robert Collier",
+		"Persist daily. - Walter Elliot",
+		"Do it today. - Mahatma Gandhi",
+		"Small deeds matter. - Peter Marshall",
+		"Hard jobs first. - Dale Carnegie",
+		"You make a difference. - William James",
+		"Be all in. - Bryan Hutchinson",
+		"Little becomes a lot. - Anonymous",
+	]);
 
-  // compute initial quote value first (avoid inline initializer function)
-  // ensure a string is produced even if tsconfig enables noUncheckedIndexedAccess
-  const idx = quotes.current.length > 0 ? Math.floor(Math.random() * quotes.current.length) : 0;
-  const initialQuote: string = quotes.current[idx] ?? quotes.current[0] ?? "";
-  const [quote, setQuote] = useState<string>(initialQuote);
+	// compute initial quote value first (avoid inline initializer function)
+	// ensure a string is produced even if tsconfig enables noUncheckedIndexedAccess
+	const idx = quotes.current.length > 0 ? Math.floor(Math.random() * quotes.current.length) : 0;
+	const initialQuote: string = quotes.current[idx] ?? quotes.current[0] ?? "";
+	const [quote, setQuote] = useState<string>(initialQuote);
 
-  // Interval ref - use the exact return type of window.setInterval to avoid lib conflicts
-  const intervalRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
+	// Interval ref - use the exact return type of window.setInterval to avoid lib conflicts
+	const intervalRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
 
-  // Update timeLeft when durations or session type change
-  useEffect(() => {
-    setTimeLeft((prev) => {
-      // If timer not running and session type changed via controls, reset to new duration
-      if (!isRunning) {
-        return (isWork ? workMinutes : breakMinutes) * 60;
-      }
-      // if running, keep current value
-      return prev;
-    });
-  }, [workMinutes, breakMinutes, isWork, isRunning]);
+	// prev-values ref for durations/session type
+	const prevVals = useRef({ workMinutes, breakMinutes, isWork });
 
-  // Timer tick effect (clamp to 0 to avoid negative)
-  useEffect(() => {
-    if (isRunning) {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
-      }
-      intervalRef.current = window.setInterval(() => {
-        setTimeLeft((t) => Math.max(0, t - 1));
-      }, 1000);
-    } else {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    }
-    return () => {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [isRunning]);
+	// Update timeLeft only when durations or session type change (don't run when pausing)
+	useEffect(() => {
+		const prev = prevVals.current;
+		const changed =
+			workMinutes !== prev.workMinutes || breakMinutes !== prev.breakMinutes || isWork !== prev.isWork;
 
-  // Auto-switch sessions when time reaches zero (use functional update to avoid stale isWork)
-  useEffect(() => {
-    if (timeLeft !== 0) return;
-    setIsWork((prev) => {
-      const next = !prev;
-      setTimeLeft(next ? workMinutes * 60 : breakMinutes * 60);
-      return next;
-    });
-  }, [timeLeft, workMinutes, breakMinutes]);
+		// If timer is NOT running and one of the tracked values changed, reset to the active session duration.
+		if (!isRunning && changed) {
+			setTimeLeft((isWork ? workMinutes : breakMinutes) * 60);
+		}
 
-  // Helpers
-  const formatTime = (seconds: number) => {
-    const s = Math.max(0, seconds);
-    const m = Math.floor(s / 60)
-      .toString()
-      .padStart(2, "0");
-    const sec = (s % 60).toString().padStart(2, "0");
-    return `${m}:${sec}`;
-  };
+		// store current values for next run
+		prevVals.current = { workMinutes, breakMinutes, isWork };
+	}, [workMinutes, breakMinutes, isWork, isRunning]);
 
-  const toggleStart = () => setIsRunning((v) => !v);
-  const resetTimer = () => {
-    setIsRunning(false);
-    setIsWork(true);
-    setTimeLeft(workMinutes * 60);
-  };
+	// Timer tick effect (clamp to 0 to avoid negative)
+	useEffect(() => {
+		if (isRunning) {
+			if (intervalRef.current !== null) {
+				window.clearInterval(intervalRef.current);
+			}
+			intervalRef.current = window.setInterval(() => {
+				setTimeLeft((t) => Math.max(0, t - 1));
+			}, 1000);
+		} else {
+			if (intervalRef.current !== null) {
+				window.clearInterval(intervalRef.current);
+				intervalRef.current = null;
+			}
+		}
+		return () => {
+			if (intervalRef.current !== null) {
+				window.clearInterval(intervalRef.current);
+				intervalRef.current = null;
+			}
+		};
+	}, [isRunning]);
 
-  // Skip session without using stale isWork value
-  const skipSession = () => {
-    setIsWork((prev) => {
-      const next = !prev;
-      setTimeLeft(next ? workMinutes * 60 : breakMinutes * 60);
-      return next;
-    });
-  };
+	// Auto-switch sessions when time reaches zero (use functional update to avoid stale isWork)
+	useEffect(() => {
+		if (timeLeft !== 0) return;
+		setIsWork((prev) => {
+			const next = !prev;
+			setTimeLeft(next ? workMinutes * 60 : breakMinutes * 60);
+			return next;
+		});
+	}, [timeLeft, workMinutes, breakMinutes]);
 
-  const newQuote = () => {
-    const idx = quotes.current.length > 0 ? Math.floor(Math.random() * quotes.current.length) : 0;
-    const q: string = quotes.current[idx] ?? quotes.current[0] ?? "";
-    setQuote(q);
-  };
+	// Helpers
+	const formatTime = (seconds: number) => {
+		const s = Math.max(0, seconds);
+		const m = Math.floor(s / 60)
+			.toString()
+			.padStart(2, "0");
+		const sec = (s % 60).toString().padStart(2, "0");
+		return `${m}:${sec}`;
+	};
 
-  const progressPercent = (() => {
-    const total = (isWork ? workMinutes : breakMinutes) * 60;
-    return Math.min(100, Math.round(((total - Math.max(0, timeLeft)) / total) * 100));
-  })();
+	const toggleStart = () =>
+		setIsRunning((prev) => {
+			const next = !prev;
+			if (next) setHasStarted(true); // mark started when transitioned to running
+			return next;
+		});
 
-  return (
-    <div className="p-6 max-w-md mx-auto text-white">
-      <h2 className="text-2xl font-semibold mb-4">Motivation & Pomodoro</h2>
+	const resetTimer = () => {
+		setIsRunning(false);
+		setIsWork(true);
+		setTimeLeft(workMinutes * 60);
+		setHasStarted(false); // reset initial state so first view is green again
+	};
 
-      {/* Timer Card */}
-      <div className="bg-white/5 rounded-lg p-4 mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm text-white/80">{isWork ? "Focus Session" : "Break"}</span>
-          <span className="text-sm text-white/60">{isRunning ? "Running" : "Paused"}</span>
-        </div>
+	// Skip session without using stale isWork value
+	const skipSession = () => {
+		setIsWork((prev) => {
+			const next = !prev;
+			setTimeLeft(next ? workMinutes * 60 : breakMinutes * 60);
+			return next;
+		});
+	};
 
-        <div className="text-center mb-3">
-          <div className="text-5xl font-mono">{formatTime(timeLeft)}</div>
-          <div className="text-sm text-white/70 mt-1">{progressPercent}%</div>
-        </div>
+	const newQuote = () => {
+		const idx = quotes.current.length > 0 ? Math.floor(Math.random() * quotes.current.length) : 0;
+		const q: string = quotes.current[idx] ?? quotes.current[0] ?? "";
+		setQuote(q);
+	};
 
-        <div className="h-2 bg-white/10 rounded overflow-hidden mb-3">
-          <div
-            className="h-full bg-emerald-400"
-            style={{ width: `${progressPercent}%`, transition: "width 0.3s linear" }}
-          />
-        </div>
+	const progressPercent = (() => {
+		const total = (isWork ? workMinutes : breakMinutes) * 60;
+		return Math.min(100, Math.round(((total - Math.max(0, timeLeft)) / total) * 100));
+	})();
 
-        <div className="flex gap-2 justify-center mb-3">
-          <button
-            onClick={toggleStart}
-            className="px-3 py-1 rounded bg-emerald-500 hover:bg-emerald-600"
-          >
-            {isRunning ? "Pause" : "Start"}
-          </button>
-          <button onClick={resetTimer} className="px-3 py-1 rounded bg-zinc-600 hover:bg-zinc-700">
-            Reset
-          </button>
-          <button onClick={skipSession} className="px-3 py-1 rounded bg-indigo-500 hover:bg-indigo-600">
-            Skip
-          </button>
-        </div>
+	// Visual classes based on state
+	// show green when running OR when it's the initial (not started) view; show red only when paused after starting
+	const timeColorClass = isRunning || !hasStarted ? "text-emerald-800" : "text-red-600";
+	const barColorClass = isRunning ? "bg-emerald-700" : "bg-red-600";
+	const startBtnClasses = "px-4 py-2 rounded bg-emerald-700 hover:bg-emerald-800 text-white font-semibold shadow";
+	const resetBtnClasses = "px-4 py-2 rounded bg-amber-500 hover:bg-amber-600 text-white";
 
-        {/* Duration controls */}
-        <div className="flex gap-4 justify-center text-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-white/80">Work</span>
-            <button
-              onClick={() => setWorkMinutes((m) => Math.max(1, m - 1))}
-              className="px-2 py-0.5 bg-zinc-700 rounded"
-            >
-              -
-            </button>
-            <span className="w-8 text-center">{workMinutes}m</span>
-            <button
-              onClick={() => setWorkMinutes((m) => Math.min(180, m + 1))}
-              className="px-2 py-0.5 bg-zinc-700 rounded"
-            >
-              +
-            </button>
-          </div>
+	// control initial reveal
+	const [showMotivation, setShowMotivation] = useState<boolean>(false);
+	const [showTimer, setShowTimer] = useState<boolean>(false);
 
-          <div className="flex items-center gap-2">
-            <span className="text-white/80">Break</span>
-            <button
-              onClick={() => setBreakMinutes((m) => Math.max(1, m - 1))}
-              className="px-2 py-0.5 bg-zinc-700 rounded"
-            >
-              -
-            </button>
-            <span className="w-8 text-center">{breakMinutes}m</span>
-            <button
-              onClick={() => setBreakMinutes((m) => Math.min(60, m + 1))}
-              className="px-2 py-0.5 bg-zinc-700 rounded"
-            >
-              +
-            </button>
-          </div>
-        </div>
-      </div>
+	return (
+		<div className="p-8 w-full max-w-3xl mx-auto text-slate-900">
+			<h2 className="text-3xl md:text-4xl font-semibold mb-6">Motivation & Pomodoro</h2>
 
-      {/* Quote Card */}
-      <div className="bg-white/5 rounded-lg p-4">
-        <h3 className="text-lg font-medium mb-2">Motivational Quote</h3>
-        <p className="text-white/90 italic mb-3">"{quote}"</p>
-        <div className="flex gap-2">
-          <button onClick={newQuote} className="px-3 py-1 rounded bg-blue-500 hover:bg-blue-600">
-            New Quote
-          </button>
-          <button
-            onClick={() => {
-              // guard clipboard at runtime (some TS configs/libraries need this)
-              if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-                navigator.clipboard.writeText(quote);
-              }
-            }}
-            className="px-3 py-1 rounded bg-zinc-600 hover:bg-zinc-700"
-          >
-            Copy
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+			{/* Brain Burst Section - conditionally shown */}
+			{!showTimer ? (
+				<div
+					className="rounded-lg mb-6 shadow-xl flex flex-col items-center justify-center"
+					style={{
+						minHeight: "250px",
+						background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+						padding: "48px 32px",
+					}}
+				>
+					<h3 className="text-2xl font-bold text-white mb-2 text-center">Ready to focus?</h3>
+					<p className="text-white/80 text-center mb-8 max-w-sm">
+						Start a productive session with our Pomodoro timer and achieve your goals
+					</p>
+					<button
+						onClick={() => setShowTimer(true)}
+						className="px-10 py-4 rounded-full bg-white text-red-600 text-xl font-bold shadow-2xl hover:scale-110 transition transform duration-200"
+					>
+						⚡ Brain Burst ⚡
+					</button>
+				</div>
+			) : (
+				<div
+					className="bg-white rounded-lg p-6 mb-6 shadow-lg"
+					style={{
+						height: "340px",
+						boxSizing: "border-box",
+						overflow: "hidden",
+					}}
+				>
+					<div className="flex justify-between items-center mb-4">
+						<span className="text-base text-slate-700">{isWork ? "Focus Session" : "Break"}</span>
+						<button
+							onClick={() => setShowTimer(false)}
+							className="text-sm px-3 py-1 rounded bg-red-500 hover:bg-red-600 text-white font-semibold"
+						>
+							Back
+						</button>
+					</div>
+
+					<div className="text-center mb-4">
+						<div className={`text-7xl md:text-8xl font-mono ${timeColorClass}`}>{formatTime(timeLeft)}</div>
+						<div className="text-sm text-slate-600 mt-2">{progressPercent}%</div>
+					</div>
+
+					<div className="h-4 bg-gray-200 rounded overflow-hidden mb-4">
+						<div
+							className={`h-full ${barColorClass} shadow-inner`}
+							style={{ width: `${progressPercent}%`, transition: "width 0.24s linear" }}
+						/>
+					</div>
+
+					<div className="flex gap-3 justify-center mb-4">
+						<button onClick={toggleStart} className={startBtnClasses}>
+							{isRunning ? "Pause" : "Start"}
+						</button>
+						<button onClick={resetTimer} className={resetBtnClasses}>
+							Reset
+						</button>
+						<button onClick={skipSession} className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-700 text-white">
+							Skip
+						</button>
+					</div>
+
+					{/* Duration controls */}
+					<div className="flex gap-6 justify-center text-sm">
+						<div className="flex items-center gap-2">
+							<span className="text-slate-700">Work</span>
+							<button
+								onClick={() => setWorkMinutes((m) => Math.max(1, m - 1))}
+								className="px-3 py-1 bg-gray-100 text-slate-700 border border-gray-200 rounded"
+							>
+								-
+							</button>
+							<span className="w-10 text-center">{workMinutes}m</span>
+							<button
+								onClick={() => setWorkMinutes((m) => Math.min(180, m + 1))}
+								className="px-3 py-1 bg-gray-100 text-slate-700 border border-gray-200 rounded"
+							>
+								+
+							</button>
+						</div>
+
+						<div className="flex items-center gap-2">
+							<span className="text-slate-700">Break</span>
+							<button
+								onClick={() => setBreakMinutes((m) => Math.max(1, m - 1))}
+								className="px-3 py-1 bg-gray-100 text-slate-700 border border-gray-200 rounded"
+							>
+								-
+							</button>
+							<span className="w-10 text-center">{breakMinutes}m</span>
+							<button
+								onClick={() => setBreakMinutes((m) => Math.min(60, m + 1))}
+								className="px-3 py-1 bg-gray-100 text-slate-700 border border-gray-200 rounded"
+							>
+								+
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Quote Card - conditionally shown */}
+			{!showMotivation ? (
+				<div
+					className="rounded-lg mb-6 shadow-xl flex flex-col items-center justify-center"
+					style={{
+						minHeight: "250px",
+						background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+						padding: "48px 32px",
+					}}
+				>
+					<h3 className="text-2xl font-bold text-white mb-2 text-center">Need a boost?</h3>
+					<p className="text-white/80 text-center mb-8 max-w-sm">
+						Get inspired with a motivational quote to keep you focused and energized
+					</p>
+					<button
+						onClick={() => setShowMotivation(true)}
+						className="px-10 py-4 rounded-full bg-white text-purple-600 text-xl font-bold shadow-2xl hover:scale-110 transition transform duration-200"
+					>
+						✨ Motivate Me ✨
+					</button>
+				</div>
+			) : (
+				<div
+					className="bg-white rounded-lg p-6"
+					style={{
+						height: "200px",
+						boxSizing: "border-box",
+						overflow: "hidden",
+					}}
+				>
+					<h3 className="text-xl font-medium mb-3 text-slate-800">Motivational Quote</h3>
+					<p
+						className="italic mb-4"
+						style={{
+							background: "linear-gradient(90deg, #10b981, #6366f1, #ec4899, #f59e0b)",
+							WebkitBackgroundClip: "text",
+							backgroundClip: "text",
+							color: "transparent",
+							animation: "fadeIn 1.5s ease-in-out",
+						}}
+					>
+						"{quote}"
+					</p>
+					<div className="flex gap-3">
+						<button onClick={newQuote} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white">
+							New Quote
+						</button>
+						<button
+							onClick={() => {
+								if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+									navigator.clipboard.writeText(quote);
+								}
+							}}
+							className="px-4 py-2 rounded bg-zinc-600 hover:bg-zinc-700 text-white"
+						>
+							Copy
+						</button>
+						<button
+							onClick={() => setShowMotivation(false)}
+							className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-700 text-white ml-auto"
+						>
+							Back
+						</button>
+					</div>
+					<style>{`
+						@keyframes fadeIn {
+							from {
+								opacity: 0;
+							}
+							to {
+								opacity: 1;
+							}
+						}
+					`}</style>
+				</div>
+			)}
+		</div>
+	);
 }
 
 
