@@ -151,20 +151,26 @@ export default function Motivation() {
 			{/* Brain Burst Section - conditionally shown */}
 			{!showTimer ? (
 				<div
-					className="rounded-lg mb-6 shadow-xl flex flex-col items-center justify-center"
+					className="rounded-lg mb-6 flex flex-col items-center justify-center"
 					style={{
 						minHeight: "250px",
-						background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-						padding: "48px 32px",
+						background: "linear-gradient(180deg,#ffffff 0%, #f8fafc 100%)",
+						border: "1px solid rgba(15,23,42,0.04)",
+						padding: "40px 28px",
+						boxShadow: "0 8px 30px rgba(2,6,23,0.06)",
 					}}
 				>
-					<h3 className="text-2xl font-bold text-white mb-2 text-center">Ready to focus?</h3>
-					<p className="text-white/80 text-center mb-8 max-w-sm">
+					<h3 className="text-2xl font-semibold text-slate-800 mb-2 text-center">Ready to focus?</h3>
+					<p className="text-slate-600 text-center mb-6 max-w-sm">
 						Start a productive session with our Pomodoro timer and achieve your goals
 					</p>
 					<button
 						onClick={() => setShowTimer(true)}
-						className="px-10 py-4 rounded-full bg-white text-red-600 text-xl font-bold shadow-2xl hover:scale-110 transition transform duration-200"
+						className="px-10 py-4 rounded-full text-white text-xl font-bold shadow-lg hover:scale-105 transition transform duration-200"
+						style={{
+							background: "linear-gradient(90deg,#f59e0b,#ef476f)",
+							border: "none",
+						}}
 					>
 						⚡ Brain Burst ⚡
 					</button>
@@ -254,20 +260,26 @@ export default function Motivation() {
 			{/* Quote Card - conditionally shown */}
 			{!showMotivation ? (
 				<div
-					className="rounded-lg mb-6 shadow-xl flex flex-col items-center justify-center"
+					className="rounded-lg mb-6 flex flex-col items-center justify-center"
 					style={{
 						minHeight: "250px",
-						background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-						padding: "48px 32px",
+						background: "linear-gradient(180deg,#ffffff 0%, #fbfbff 100%)",
+						border: "1px solid rgba(15,23,42,0.04)",
+						padding: "40px 28px",
+						boxShadow: "0 8px 30px rgba(2,6,23,0.06)",
 					}}
 				>
-					<h3 className="text-2xl font-bold text-white mb-2 text-center">Need a boost?</h3>
-					<p className="text-white/80 text-center mb-8 max-w-sm">
+					<h3 className="text-2xl font-semibold text-slate-800 mb-2 text-center">Need a boost?</h3>
+					<p className="text-slate-600 text-center mb-6 max-w-sm">
 						Get inspired with a motivational quote to keep you focused and energized
 					</p>
 					<button
 						onClick={() => setShowMotivation(true)}
-						className="px-10 py-4 rounded-full bg-white text-purple-600 text-xl font-bold shadow-2xl hover:scale-110 transition transform duration-200"
+						className="px-10 py-4 rounded-full text-white text-xl font-bold shadow-lg hover:scale-105 transition transform duration-200"
+						style={{
+							background: "linear-gradient(90deg,#f59e0b,#ef476f)",
+							border: "none",
+						}}
 					>
 						✨ Motivate Me ✨
 					</button>
