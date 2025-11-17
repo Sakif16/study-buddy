@@ -3,14 +3,15 @@ import { NavLink } from "react-router-dom"
 
 const links = [
   { to: "/", label: "Home" },
+  { to: "/motivation", label: "Study" },
   { to: "/assignments", label: "Assignments" },
   { to: "/notes", label: "Notes" },
   { to: "/group-study", label: "Group Study" },
-  { to: "/motivation", label: "Motivation" },
   { to: "/charts", label: "Charts" },
   { to: "/streak", label: "Streak" },
   { to: "/missed-tasks", label: "Missed Tasks" },
   { to: "/wordle", label: "Wordle" },
+  { to: "/ai-buddy", label: "Ai Buddy" },
 ]
 
 export default function Navbar() {
