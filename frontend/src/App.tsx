@@ -14,6 +14,7 @@ import Charts from "./pages/Charts"
 import Notes from "./pages/Notes"
 import MissedTasks from "./pages/MissedTasks"
 import Auth from "./pages/Auth"
+import Signup from "./pages/Signup"
 
 function AppContent() {
   const location = useLocation()
@@ -40,6 +41,7 @@ function AppContent() {
           <Route path="/notes" element={<Notes />} />
           <Route path="/missed-tasks" element={<MissedTasks />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/signup" element={<Signup />} />
         </Routes>
       </main>
       <Footer />
