@@ -1,4 +1,5 @@
 {
   "editor.formatOnSave": true,
-  "files.eol": "\n"
+  "files.eol": "\n",
+  "postman.settings.dotenv-detection-notification-visibility": false
 }
