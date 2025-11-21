@@ -81,6 +81,21 @@ export default function Assignments() {
     setAssignments((s) => s.filter((a) => a.id !== id))
   }
 
+  const getPriorityClasses = (p: Assignment["priority"]) => {
+    switch (p) {
+      case "Low":
+        return "text-sm px-2 py-1 rounded bg-green-500 text-white"
+      case "Medium":
+        return "text-sm px-2 py-1 rounded bg-yellow-400 text-black"
+      case "High":
+        return "text-sm px-2 py-1 rounded bg-red-500 text-white"
+      case "Extremely High":
+        return "text-sm px-2 py-1 rounded bg-purple-600 text-white"
+      default:
+        return "text-sm px-2 py-1 rounded bg-gray-700 text-white"
+    }
+  }
+
   return (
     <div className="p-8">
       <div className="max-w-4xl mx-auto bg-white rounded-lg p-6 shadow-sm">
@@ -190,7 +205,7 @@ export default function Assignments() {
                     <h3 className="text-lg font-semibold text-black">
                       {a.title}
                     </h3>
-                    <span className="text-sm px-2 py-1 rounded text-white bg-gray-700">
+                    <span className={getPriorityClasses(a.priority)}>
                       {a.priority}
                     </span>
                   </div>
