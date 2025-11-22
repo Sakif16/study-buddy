@@ -26,6 +26,19 @@ const formatRemaining = (ms: number) => {
   return parts.join(" ")
 }
 
+const formatRemainingShort = (ms: number) => {
+  if (ms <= 0) return "0s"
+  const totalSeconds = Math.floor(ms / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (days) return `${days}d ${hours}h`
+  if (hours) return `${hours}h ${minutes}m`
+  if (minutes) return `${minutes}m ${seconds}s`
+  return `${seconds}s`
+}
+
 export default function Assignments() {
   const [assignments, setAssignments] = useState<Assignment[]>(() => {
     try {
@@ -93,6 +106,21 @@ export default function Assignments() {
         return "text-sm px-2 py-1 rounded bg-purple-600 text-white"
       default:
         return "text-sm px-2 py-1 rounded bg-gray-700 text-white"
+    }
+  }
+
+  const getPriorityHex = (p: Assignment["priority"]) => {
+    switch (p) {
+      case "Low":
+        return "#16a34a"
+      case "Medium":
+        return "#f59e0b"
+      case "High":
+        return "#ef4444"
+      case "Extremely High":
+        return "#7c3aed"
+      default:
+        return "#374151"
     }
   }
 
@@ -200,21 +228,80 @@ export default function Assignments() {
                 key={a.id}
                 className="bg-gray-50 rounded p-4 flex items-start justify-between border border-gray-100"
               >
-                <div>
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-semibold text-black">
-                      {a.title}
-                    </h3>
-                    <span className={getPriorityClasses(a.priority)}>
-                      {a.priority}
-                    </span>
+                <div className="flex items-start gap-4">
+                  {/* Circular timer */}
+                  <div className="w-14 h-14 flex items-center justify-center">
+                    <svg viewBox="0 0 48 48" className="w-12 h-12">
+                      <title>{a.title + " remaining"}</title>
+                      <defs />
+                      <g transform="rotate(-90 24 24)">
+                        <circle
+                          cx="24"
+                          cy="24"
+                          r="18"
+                          stroke="#e5e7eb"
+                          strokeWidth="4"
+                          fill="none"
+                        />
+                        {(() => {
+                          const total = Math.max(a.endAt - a.createdAt, 0)
+                          const remainingLocal = Math.max(
+                            a.endAt - Date.now(),
+                            0,
+                          )
+                          const progress =
+                            total > 0 ? remainingLocal / total : 0
+                          const radius = 18
+                          const circumference = 2 * Math.PI * radius
+                          const offset = circumference * (1 - progress)
+                          const stroke = getPriorityHex(a.priority)
+                          return (
+                            <circle
+                              cx="24"
+                              cy="24"
+                              r={radius}
+                              stroke={stroke}
+                              strokeWidth="4"
+                              strokeLinecap="round"
+                              fill="none"
+                              strokeDasharray={`${circumference}`}
+                              strokeDashoffset={offset}
+                              style={{
+                                transition: "stroke-dashoffset 0.8s linear",
+                              }}
+                            />
+                          )
+                        })()}
+                      </g>
+                      <text
+                        x="24"
+                        y="26"
+                        textAnchor="middle"
+                        fontSize="9"
+                        fill={getPriorityHex(a.priority)}
+                        className="font-medium"
+                      >
+                        {formatRemainingShort(remaining)}
+                      </text>
+                    </svg>
                   </div>
-                  {a.description && (
-                    <p className="text-gray-700 mt-1">{a.description}</p>
-                  )}
-                  <p className="text-gray-500 mt-2">
-                    Due in: {formatRemaining(remaining)}
-                  </p>
+
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-black">
+                        {a.title}
+                      </h3>
+                      <span className={getPriorityClasses(a.priority)}>
+                        {a.priority}
+                      </span>
+                    </div>
+                    {a.description && (
+                      <p className="text-gray-700 mt-1">{a.description}</p>
+                    )}
+                    <p className="text-gray-500 mt-2">
+                      Due in: {formatRemaining(remaining)}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-col items-end gap-2">
