@@ -31,14 +31,14 @@ export default function GroupStudy() {
     <div className="p-8 text-white">
       <h2 className="text-2xl font-semibold text-white mb-6">Group Study</h2>
 
-      <div className="w-full max-w-[95%] mx-auto">
-        <div className="p-2 flex items-center justify-between">
+      <div className="w-200 mx-auto rounded-lg shadow-lg overflow-hidden bg-[#08917e]">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div>
-              <div className="text-white font-semibold">Study Group</div>
+              <div className="text-white font-bold">Study Group</div>
             </div>
           </div>
-          <div className="text-sm text-white/60">Public • Mock</div>
+          <div className="text-sm text-white/80">Public • Mock</div>
         </div>
 
         <div className="p-4 h-[700px] flex flex-col">
@@ -49,25 +49,28 @@ export default function GroupStudy() {
               </div>
             ) : (
               messages.map((m) => (
-                <div key={m.id} className="mb-4">
-                  <div className="text-sm text-white/70">
+                <div
+                  key={m.id}
+                  className={`mb-4 ${m.self ? "text-right" : ""}`}
+                >
+                  <div className="text-sm text-white font-semibold">
                     {m.self ? "You" : m.author} •{" "}
-                    <span className="text-xs text-white/50">{m.time}</span>
+                    <span className="text-xs text-white/60">{m.time}</span>
                   </div>
-                  <div className="text-white mt-1">{m.text}</div>
+                  <div className="text-white font-medium mt-1">{m.text}</div>
                 </div>
               ))
             )}
           </div>
 
-          <div className="mt-3 pt-3">
+          <div className="mt-3 pt-3 border-t border-gray-200">
             <div className="flex items-center gap-3">
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && send()}
                 placeholder="Type a message to the group..."
-                className="flex-1 px-4 py-3 text-white placeholder-white/60 outline-none"
+                className="flex-1 px-4 py-3 text-white placeholder-white outline-none border border-gray-300 rounded"
               />
               <button
                 onClick={send}
