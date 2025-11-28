@@ -71,6 +71,20 @@ const Wordle: React.FC = () => {
     }
   }
 
+  // compute key status mapping based on guesses: present in target => green, guessed but absent => gray
+  const keyStatus: Record<string, "green" | "gray"> = {}
+  guesses.forEach((guess) => {
+    for (const ch of guess.toUpperCase()) {
+      if (!/^[A-Z]$/.test(ch)) continue
+      if ((targetWord || "").toUpperCase().includes(ch)) {
+        keyStatus[ch] = "green"
+      } else {
+        // only set to gray if not already green
+        if (keyStatus[ch] !== "green") keyStatus[ch] = "gray"
+      }
+    }
+  })
+
   const restartGame = () => {
     if (gamesPlayed >= MAX_GAMES_PER_DAY) {
       setMessage("You've reached your daily limit!")
@@ -105,7 +119,7 @@ const Wordle: React.FC = () => {
         currentGuess={currentGuess}
         targetWord={targetWord!}
       />
-      <Keyboard onKeyPress={onKeyPress} />
+      <Keyboard onKeyPress={onKeyPress} keyStatus={keyStatus} />
       {message && <p className="mt-4 text-lg font-semibold">{message}</p>}
       <button
         onClick={restartGame}

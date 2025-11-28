@@ -3,6 +3,7 @@ import { useEffect } from "react"
 
 interface KeyboardProps {
   onKeyPress: (key: string) => void
+  keyStatus?: Record<string, "green" | "gray">
 }
 
 const KEYS = [
@@ -11,7 +12,7 @@ const KEYS = [
   ["ENTER", "Z", "X", "C", "V", "B", "N", "M", "DEL"],
 ]
 
-const Keyboard: React.FC<KeyboardProps> = ({ onKeyPress }) => {
+const Keyboard: React.FC<KeyboardProps> = ({ onKeyPress, keyStatus = {} }) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toUpperCase()
@@ -46,8 +47,16 @@ const Keyboard: React.FC<KeyboardProps> = ({ onKeyPress }) => {
           {row.map((key) => (
             <button
               key={key}
-              className="px-3 py-2 bg-gray-300 rounded text-sm font-bold hover:bg-gray-400"
               onClick={() => onKeyPress(key)}
+              className={`px-3 py-2 rounded text-sm font-bold hover:brightness-95 ${
+                /^[A-Z]$/.test(key)
+                  ? keyStatus[key] === "green"
+                    ? "bg-green-500 text-white"
+                    : keyStatus[key] === "gray"
+                      ? "bg-gray-500 text-white"
+                      : "bg-gray-200 text-black"
+                  : "bg-gray-200 text-black"
+              }`}
             >
               {key}
             </button>
