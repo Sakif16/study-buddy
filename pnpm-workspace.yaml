@@ -3,5 +3,8 @@ packages:
   - backend
 
 onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
   - '@swc/core'
   - esbuild
+  - prisma

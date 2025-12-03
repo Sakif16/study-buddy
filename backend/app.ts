@@ -8,7 +8,9 @@ import express from "express"
 import helmet from "helmet"
 import logger from "morgan"
 
-import { db } from "./db.js"
+import { db, UserSchema } from "./db.js"
+import z from "zod"
+import { Prisma } from "./generated/prisma/client.js"
 
 const app = express()
 const PORT = parseInt(process.env.PORT ?? "3000")
@@ -28,15 +30,27 @@ app.listen(PORT, () => {
   console.log(`express-app listening on port ${PORT}`)
 })
 
-app.get("/:movie", async (req, res) => {
-  const { movie } = req.params
+app.get("/username/:username", async (req, res) => {
+  const { username } = req.params
 
-  const findings = await db
-    .collection("movies")
-    .find({ genres: "Western" })
-    .project({ _id: 0, title: 1 })
-    .limit(3)
-    .toArray()
+  const user = await db.user.findFirst({
+    where: { username },
+  })
 
-  res.json(findings)
+  res.json(user)
+})
+
+app.post("/user", async (req, res) => {
+  const data = UserSchema.parse(req.body)
+
+  try {
+    const user = await db.user.create({ data })
+    res.json(user)
+  } catch (error) {
+    if (error instanceof z.ZodError) console.log(z.flattenError(error))
+    else if (error instanceof Prisma.PrismaClientKnownRequestError)
+      console.log(error)
+
+    res.end()
+  }
 })
