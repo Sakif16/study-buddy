@@ -150,10 +150,7 @@ export default function Home() {
     })
     const total = inMonth.length
     const completed = inMonth.filter((t) => t.completed).length
-    const overdue = inMonth.filter(
-      (t) => !t.completed && t.dueDate && parseDisplayToDate(t.dueDate) < new Date()
-    ).length
-    return { total, completed, overdue }
+    return { total, completed }
   }, [tasks, currentMonth])
 
   return (
@@ -167,7 +164,6 @@ export default function Home() {
           <div className="text-sm text-black/70">
             <div>Total: <strong>{summary.total}</strong></div>
             <div>Completed: <strong>{summary.completed}</strong></div>
-            <div>Overdue: <strong>{summary.overdue}</strong></div>
           </div>
           <div className="flex items-center gap-2">
             <button className="px-3 py-1 bg-white/80 rounded shadow-sm" onClick={() => changeMonth(-1)}>Prev</button>
