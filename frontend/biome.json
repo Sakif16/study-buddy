@@ -8,10 +8,16 @@
         "noLabelWithoutControl": "info"
       },
       "suspicious": {
-        "noArrayIndexKey": "off"
+        "noArrayIndexKey": "off",
+        "noExplicitAny": "off",
+        "noTsIgnore": "off"
       },
       "security": {
         "noBlankTarget": "warn"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn",
+        "useJsxKeyInIterable": "warn"
       }
     }
   }

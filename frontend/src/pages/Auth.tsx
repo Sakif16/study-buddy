@@ -1,14 +1,45 @@
-import { useState } from "react"
-import { Link } from "react-router-dom"
+import { useContext, useState } from "react"
+import { Link, redirect, useNavigate } from "react-router-dom"
+import { BACKEND_URL } from "../constants"
+import AuthApi from "../AuthApi"
+
+type LoginPayload =
+  | {
+      success: true
+      user: {
+        id: string
+        username: string
+        name: string | null
+      }
+    }
+  | {
+      success: false
+      errors: any
+    }
 
 export default function Auth() {
+  const navigate = useNavigate()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const apiAuth = useContext(AuthApi)
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Replace with real auth logic later
-    console.log("Login submitted", { username, password })
+
+    const res = await fetch(`${BACKEND_URL}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    })
+
+    const data = (await res.json()) as LoginPayload
+
+    if (data.success) {
+      apiAuth!.setAuth(true)
+      return navigate("/")
+    } else {
+      // TODO: render errors in-page
+    }
   }
 
   return (

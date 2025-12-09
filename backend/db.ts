@@ -6,9 +6,14 @@ export const db = new PrismaClient()
 
 console.log("database connected established")
 
-export const UserSchema = z.object({
+export const RegisterSchema = z.object({
   username: z.string(),
   email: z.email(),
   password: z.string().min(8).max(20),
   name: z.string().max(20).nullable().default(null),
+})
+
+export const LoginSchema = z.object({
+  username: z.string(),
+  password: z.string().min(8).max(20),
 })

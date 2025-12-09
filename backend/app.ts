@@ -7,24 +7,39 @@ import cors from "cors"
 import express from "express"
 import helmet from "helmet"
 import logger from "morgan"
+import session from "express-session"
 
-import { db, UserSchema } from "./db.js"
-import z from "zod"
-import { Prisma } from "./generated/prisma/client.js"
+import auth from "./routes/auth.js"
+import { db } from "./db.js"
 
 const app = express()
 const PORT = parseInt(process.env.PORT ?? "3000")
 
 app.use(logger("dev"))
 app.use(helmet())
-app.use(cors())
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  }),
+)
 app.use(cookieParser())
+
+app.use(
+  session({
+    secret: process.env.SECRET_KEY!,
+    resave: false,
+    saveUninitialized: false,
+  }),
+)
 
 app.use(express.json())
 app.use(express.urlencoded())
 app.use(express.text())
 
 app.use("/public", express.static(path.join(import.meta.dirname, "public")))
+
+app.use("/", auth)
 
 app.listen(PORT, () => {
   console.log(`express-app listening on port ${PORT}`)
@@ -38,19 +53,4 @@ app.get("/username/:username", async (req, res) => {
   })
 
   res.json(user)
-})
-
-app.post("/user", async (req, res) => {
-  const data = UserSchema.parse(req.body)
-
-  try {
-    const user = await db.user.create({ data })
-    res.json(user)
-  } catch (error) {
-    if (error instanceof z.ZodError) console.log(z.flattenError(error))
-    else if (error instanceof Prisma.PrismaClientKnownRequestError)
-      console.log(error)
-
-    res.end()
-  }
 })

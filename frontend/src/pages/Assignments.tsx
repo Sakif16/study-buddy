@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { BACKEND_URL } from "../constants"
 
 type Assignment = {
   id: string
@@ -66,7 +67,7 @@ export default function Assignments() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(assignments))
   }, [assignments])
 
-  const addAssignment = (e?: React.FormEvent) => {
+  const addAssignment = async (e?: React.FormEvent) => {
     e?.preventDefault()
     if (!title.trim()) return
     const totalMs =
