@@ -1,5 +1,5 @@
 import { useContext, useState } from "react"
-import { Link, redirect, useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { BACKEND_URL } from "../constants"
 import AuthApi from "../AuthApi"
 
@@ -29,6 +29,7 @@ export default function Auth() {
     const res = await fetch(`${BACKEND_URL}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ username, password }),
     })
 
@@ -36,6 +37,7 @@ export default function Auth() {
 
     if (data.success) {
       apiAuth!.setAuth(true)
+      if ((data as any).user) apiAuth!.setUser((data as any).user)
       return navigate("/")
     } else {
       // TODO: render errors in-page

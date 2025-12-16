@@ -34,7 +34,7 @@ app.use(
 )
 
 app.use(express.json())
-app.use(express.urlencoded())
+app.use(express.urlencoded({ extended: true }))
 app.use(express.text())
 
 app.use("/public", express.static(path.join(import.meta.dirname, "public")))

@@ -1,5 +1,8 @@
-import { useState } from "react"
-import { Link } from "react-router-dom"
+import { useContext, useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
+import { BACKEND_URL } from "../constants"
+import AuthApi from "../AuthApi"
+import { z } from "zod"
 
 export default function Signup() {
   const [fullName, setFullName] = useState("")
@@ -8,6 +11,10 @@ export default function Signup() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState("")
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const apiAuth = useContext(AuthApi)
+  const navigate = useNavigate()
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,8 +25,79 @@ export default function Signup() {
     }
 
     setError("")
-    // Replace with real signup logic later
-    console.log("Signup submitted", { fullName, username, email, password })
+    setFieldErrors({})
+
+    const RegisterSchema = z.object({
+      username: z.string().min(1, "Username is required"),
+      email: z.string().email("Invalid email"),
+      password: z
+        .string()
+        .min(8, "Password must be at least 8 characters")
+        .max(20),
+      name: z.string().max(20).nullable().optional(),
+    })
+
+    const parsed = RegisterSchema.safeParse({
+      username,
+      email,
+      password,
+      name: fullName || null,
+    })
+
+    if (!parsed.success) {
+      const issues: Record<string, string> = {}
+      parsed.error.issues.forEach((i) => {
+        if (i.path?.length) issues[i.path[0].toString()] = i.message
+      })
+      setFieldErrors(issues)
+      return
+    }
+
+    ;(async () => {
+      setSubmitting(true)
+      try {
+        const res = await fetch(`${BACKEND_URL}/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            username,
+            email,
+            password,
+            name: fullName || null,
+          }),
+        })
+
+        const data = await res.json()
+
+        if (data.success) {
+          apiAuth?.setAuth(true)
+          if (data.user) apiAuth?.setUser(data.user)
+          navigate("/")
+        } else {
+          if ((data as any)?.errors?.fieldErrors) {
+            const issues: Record<string, string> = {}
+            const fe = (data as any).errors.fieldErrors as Record<
+              string,
+              string[]
+            >
+            for (const k in fe) {
+              issues[k] = Array.isArray(fe[k]) ? fe[k].join(" ") : String(fe[k])
+            }
+            setFieldErrors(issues)
+          } else {
+            let msg = "Registration failed"
+            if ((data as any).message) msg = (data as any).message
+            setError(msg)
+          }
+        }
+      } catch (err: any) {
+        console.error(err)
+        setError(err?.message ?? "Registration failed")
+      } finally {
+        setSubmitting(false)
+      }
+    })()
   }
 
   return (
@@ -55,6 +133,11 @@ export default function Signup() {
               placeholder="Choose a username"
               required
             />
+            {fieldErrors.username && (
+              <p className="text-sm text-red-600 mt-1">
+                {fieldErrors.username}
+              </p>
+            )}
           </label>
 
           <label className="flex flex-col text-black">
@@ -67,6 +150,9 @@ export default function Signup() {
               placeholder="you@example.com"
               required
             />
+            {fieldErrors.email && (
+              <p className="text-sm text-red-600 mt-1">{fieldErrors.email}</p>
+            )}
           </label>
 
           <label className="flex flex-col text-black">
@@ -79,6 +165,11 @@ export default function Signup() {
               placeholder="Create a password"
               required
             />
+            {fieldErrors.password && (
+              <p className="text-sm text-red-600 mt-1">
+                {fieldErrors.password}
+              </p>
+            )}
           </label>
 
           <label className="flex flex-col text-black">
@@ -97,9 +188,10 @@ export default function Signup() {
 
           <button
             type="submit"
-            className="mt-2 w-full px-4 py-2 bg-[#1BECC9] text-black font-semibold rounded hover:brightness-95"
+            disabled={submitting}
+            className={`mt-2 w-full px-4 py-2 bg-[#1BECC9] text-black font-semibold rounded hover:brightness-95 ${submitting ? "opacity-60 cursor-not-allowed" : ""}`}
           >
-            Sign up
+            {submitting ? "Signing up..." : "Sign up"}
           </button>
 
           <div className="mt-4 text-center text-gray-700">

@@ -23,12 +23,18 @@ import Notes from "./pages/Notes"
 import MissedTasks from "./pages/MissedTasks"
 import Auth from "./pages/Auth"
 import Signup from "./pages/Signup"
+import Profile from "./pages/Profile"
 import { useContext, useEffect, useState } from "react"
 import AuthApi from "./AuthApi"
 import { BACKEND_URL } from "./constants"
 
 function AppContent() {
   const [auth, setAuth] = useState(false)
+  const [user, setUser] = useState<null | {
+    id: string
+    username: string
+    name?: string | null
+  }>(null)
 
   useEffect(function readSession() {
     const controller = new AbortController()
@@ -39,8 +45,12 @@ function AppContent() {
           signal: controller.signal,
           credentials: "include",
         })
-        const { status } = (await res.json()) as { status: boolean }
+        const { status, user } = (await res.json()) as {
+          status: boolean
+          user: null | { id: string; username: string; name?: string | null }
+        }
         setAuth(status)
+        setUser(user)
         console.log(`read-session status is ${status}`)
       } catch (error) {
         console.log(error)
@@ -56,14 +66,14 @@ function AppContent() {
     location.pathname === "/auth" || location.pathname === "/signup"
 
   return (
-    <div className="app-root min-h-screen bg-[#0DB19B] text-black flex flex-col">
-      {!hideNavbar && <Navbar />}
+    <AuthApi value={{ auth, setAuth, user, setUser }}>
+      <div className="app-root min-h-screen bg-[#0DB19B] text-black flex flex-col">
+        {!hideNavbar && <Navbar />}
 
-      <main
-        className="flex-1 my-6 mx-auto py-0 px-4"
-        style={{ maxWidth: 1100 }}
-      >
-        <AuthApi value={{ auth, setAuth }}>
+        <main
+          className="flex-1 my-6 mx-auto py-0 px-4"
+          style={{ maxWidth: 1100 }}
+        >
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/signup" element={<Signup />} />
@@ -76,15 +86,16 @@ function AppContent() {
               <Route path="/motivation" element={<Motivation />} />
               <Route path="/group-study" element={<GroupStudy />} />
               <Route path="/ai-buddy" element={<AIBuddy />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="/charts" element={<Charts />} />
               <Route path="/notes" element={<Notes />} />
               <Route path="/missed-tasks" element={<MissedTasks />} />
             </Route>
           </Routes>
-        </AuthApi>
-      </main>
-      <Footer />
-    </div>
+        </main>
+        <Footer />
+      </div>
+    </AuthApi>
   )
 }
 
@@ -104,20 +115,23 @@ function ProtectedRoutes() {
 
 function Logout() {
   const navigate = useNavigate()
+  const authApi = useContext(AuthApi)
 
   useEffect(() => {
     const logout = async () => {
       try {
-        await fetch(`${BACKEND_URL}/logout`)
+        await fetch(`${BACKEND_URL}/logout`, { credentials: "include" })
       } catch (err) {
         console.error("logout failed?", err)
       } finally {
+        authApi?.setAuth(false)
+        authApi?.setUser(null)
         navigate("/auth")
       }
     }
 
     logout()
-  }, [navigate])
+  }, [navigate, authApi])
 
   return null
 }
