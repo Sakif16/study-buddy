@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { BACKEND_URL } from "../constants"
+import { useContext, useEffect, useState } from "react"
+import AuthApi from "../AuthApi"
 
 type Assignment = {
   id: string
@@ -63,6 +63,38 @@ export default function Assignments() {
     return () => clearInterval(id)
   }, [])
 
+  const authContext = useContext(AuthApi)
+
+  // load from backend when authenticated (or attempt to)
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/assignments", {
+          credentials: "include",
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!data?.success || !Array.isArray(data.assignments)) return
+        const mapped: Assignment[] = data.assignments.map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          description: a.description ?? "",
+          priority: a.priority ?? "Low",
+          endAt: a.endAt ? new Date(a.endAt).getTime() : Date.now(),
+          createdAt: a.createdAt ? new Date(a.createdAt).getTime() : Date.now(),
+        }))
+        setAssignments(mapped)
+      } catch {
+        // ignore and keep local storage fallback
+        console.warn("failed to load assignments from server")
+      }
+    }
+
+    load()
+    // run only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(assignments))
   }, [assignments])
@@ -74,15 +106,52 @@ export default function Assignments() {
       ((days || 0) * 24 * 3600 + (hours || 0) * 3600 + (minutes || 0) * 60) *
       1000
     const endAt = Date.now() + Math.max(totalMs, 0)
-    const newItem: Assignment = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    // try to persist on server if authenticated
+    const payload = {
       title: title.trim(),
       description: description.trim(),
       priority,
       endAt,
-      createdAt: Date.now(),
     }
-    setAssignments((s) => [newItem, ...s])
+
+    try {
+      const res = await fetch("http://localhost:3000/assignments", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        const body = await res.json()
+        if (body?.success && body.assignment) {
+          const a = body.assignment
+          const newItem: Assignment = {
+            id: a.id,
+            title: a.title,
+            description: a.description ?? "",
+            priority: a.priority ?? "Low",
+            endAt: a.endAt ? new Date(a.endAt).getTime() : Date.now(),
+            createdAt: a.createdAt
+              ? new Date(a.createdAt).getTime()
+              : Date.now(),
+          }
+          setAssignments((s) => [newItem, ...s])
+        }
+      } else {
+        throw new Error("server returned " + res.status)
+      }
+    } catch {
+      // fallback to local-only behavior
+      const newItem: Assignment = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: title.trim(),
+        description: description.trim(),
+        priority,
+        endAt,
+        createdAt: Date.now(),
+      }
+      setAssignments((s) => [newItem, ...s])
+    }
     setTitle("")
     setDescription("")
     setPriority("Low")
@@ -92,6 +161,11 @@ export default function Assignments() {
   }
 
   const removeAssignment = (id: string) => {
+    // attempt server delete, but always update UI
+    fetch(`http://localhost:3000/assignments/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    }).catch(() => {})
     setAssignments((s) => s.filter((a) => a.id !== id))
   }
 
