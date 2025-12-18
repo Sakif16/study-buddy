@@ -8,9 +8,8 @@
   "packageManager": "pnpm@10.14.0",
   "type": "module",
   "dependencies": {
-    "@prisma/client": "^6.19.0",
-    "cookie-parser": "^1.4.7",
     "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
@@ -21,12 +20,13 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
+    "@prisma/client": "^6.19.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
     "@types/express-session": "^1.18.2",
     "@types/morgan": "^1.9.10",
-    "prisma": "^6.19.0",
+    "prisma": "^6.19.1",
     "tsx": "^4.20.6"
   }
 }

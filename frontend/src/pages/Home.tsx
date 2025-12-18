@@ -16,15 +16,15 @@ type Task = {
   notes?: string
   //createdDate: string // dd/mm/yyyy
   dueDate?: string // dd/mm/yyyy
-  completed?: boolean
   dueTime?: string
+  completed?: boolean
 }
 
-const STORAGE_KEY = "study-buddy.tasks.v2"
+//const STORAGE_KEY = "study-buddy.tasks.v2"
 
-function uid() {
-  return Math.random().toString(36).slice(2, 9)
-}
+// function uid() {
+//   return Math.random().toString(36).slice(2, 9)
+// }
 
 function formatDateDisplay(d: Date) {
   const day = String(d.getDate()).padStart(2, "0")
@@ -59,18 +59,87 @@ export default function Home() {
   const [editing, setEditing] = useState<Task | null>(null)
   const [showForm, setShowForm] = useState(false)
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) setTasks(JSON.parse(raw))
-    } catch { }
-  }, [])
+  // useEffect(() => {
+  //   try {
+  //     const raw = localStorage.getItem(STORAGE_KEY)
+  //     if (raw) setTasks(JSON.parse(raw))
+  //   } catch { }
+  // }, [])
 
-  useEffect(() => {
+  // useEffect(() => {
+  //   try {
+  //     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks))
+  //   } catch { }
+  // }, [tasks])
+
+   const API = "http://localhost:3000/api"
+
+
+   // Load tasks from backend on mount
+   useEffect(() => {
+     let cancelled = false
+     async function load() {
+       try {
+         const res = await fetch(`${API}/tasks`,{credentials: "include",})
+         if (!res.ok) throw new Error("Failed to fetch tasks")
+         const data = await res.json()
+         if (!cancelled) setTasks(data)
+       } catch (err) {
+         console.error("fetch tasks error:", err)
+       }
+    }
+     load()
+     return () => { cancelled = true }
+   }, [])
+
+   // API helpers
+   async function saveTaskAPI(task: Task) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks))
-    } catch { }
-  }, [tasks])
+      if (task.id) {
+        // UPDATE
+        const res = await fetch(`${API}/tasks/${task.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(task),
+          credentials: "include",
+        })
+        const updated = await res.json()
+        setTasks((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+      } else {
+        // CREATE
+        const res = await fetch(`${API}/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(task),
+          credentials: "include",
+        })
+        const created = await res.json()
+        setTasks((prev) => [...prev, created])
+      }
+    } catch (err) {
+      console.error("saveTaskAPI error:", err)
+    }
+  }
+
+   async function removeTaskAPI(id: string) {
+     try {
+       const res = await fetch(`${API}/tasks/${id}`, { method: "DELETE", credentials: "include", })
+       if (res.status === 204 || res.ok) setTasks((prev) => prev.filter((p) => p.id !== id))
+     } catch (err) {
+       console.error("removeTaskAPI error:", err)
+     }
+   }
+
+   async function toggleCompleteAPI(id: string) {
+     try {
+       const res = await fetch(`${API}/tasks/${id}/toggle`, { method: "PATCH", credentials: "include",})
+       if (!res.ok) throw new Error("Failed to toggle")
+       const updated = await res.json()
+       setTasks((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+     } catch (err) {
+       console.error("toggleCompleteAPI error:", err)
+     }
+   }
 
   const daysGrid = useMemo(() => {
     const start = startOfMonth(currentMonth)
@@ -109,7 +178,7 @@ export default function Home() {
 
   function onCreate(dateDisplay: string) {
     setEditing({
-      id: uid(),
+      //id: uid(),
       title: "",
       dueDate: dateDisplay,
       //dueDate: "",
@@ -118,25 +187,18 @@ export default function Home() {
   }
 
   function saveTask(t: Task) {
-    setTasks((prev) => {
-      const exists = prev.find((p) => p.id === t.id)
-      if (exists) {
-        return prev.map((p) => (p.id === t.id ? t : p))
-      } else {
-        return [...prev, t]
-      }
-    })
+    saveTaskAPI(t)
     setShowForm(false)
     setEditing(null)
   }
 
   function removeTask(id: string) {
     if (!confirm("Delete this task?")) return
-    setTasks((prev) => prev.filter((p) => p.id !== id))
+    removeTaskAPI(id)
   }
 
   function toggleComplete(id: string) {
-    setTasks((prev) => prev.map((p) => (p.id === id ? { ...p, completed: !p.completed } : p)))
+    toggleCompleteAPI(id)
   }
 
   const summary = useMemo(() => {
@@ -195,7 +257,7 @@ export default function Home() {
                      setSelectedDate(display)
                      if (showForm) {
                       setEditing((prev) =>
-                        prev ? { ...prev, dueDate: display } : { id: uid(), title: "", dueDate: display }
+                        prev ? { ...prev, dueDate: display } : { title: "", dueDate: display }
                       )
                      }
                   }} 
@@ -270,7 +332,7 @@ export default function Home() {
           {showForm && (
             <div className="mt-4 p-3 bg-white/6 rounded border">
               <TaskForm
-                initial={editing ?? { id: uid(), title: "", dueDate: selectedDate }}
+                initial={editing ?? { title: "", dueDate: selectedDate }}
                 selectedDate={selectedDate}
                 onCancel={() => { setShowForm(false); setEditing(null); }}
                 onSave={(t) => saveTask(t)}
@@ -299,7 +361,7 @@ function TaskForm({
   const [dueDate, setDueDate] = useState(initial.dueDate || selectedDate)
   const [time, setTime] = useState(initial.dueTime || "")
   const [completed, setCompleted] = useState(!!initial.completed)
-  const id = (initial as Task).id || uid()
+  //const id = (initial as Task).id || uid()
   //const createdDate = initial.createdDate!
 
   useEffect(() => {
@@ -310,7 +372,12 @@ function TaskForm({
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        onSave({ id, title: title.trim(), notes: notes.trim(), dueDate, dueTime: time, completed })
+        onSave({ ...(initial.id ? { id: initial.id } : {}), 
+              title: title.trim(), 
+              notes: notes.trim(), 
+              dueDate, 
+              dueTime: time, 
+              completed })
       }}
       className="space-y-2"
     >

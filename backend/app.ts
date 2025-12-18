@@ -11,6 +11,7 @@ import session from "express-session"
 
 import auth from "./routes/auth.js"
 import { db } from "./db.js"
+import tasksRoutes from "./routes/tasks.js"
 
 const app = express()
 const PORT = parseInt(process.env.PORT ?? "3000")
@@ -54,3 +55,5 @@ app.get("/username/:username", async (req, res) => {
 
   res.json(user)
 })
+
+app.use("/api/tasks", tasksRoutes)

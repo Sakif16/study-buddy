@@ -21,4 +21,18 @@ model user {
   password  String
   name      String?
   createdAt DateTime @default(now())
+
+  tasks Task[]
+}
+
+model Task {
+  id String @id @map("_id") @default(auto()) @db.ObjectId
+  title     String?
+  notes     String?
+  dueDate   String?
+  dueTime   String?
+  completed Boolean  @default(false)
+  userId    String   @db.ObjectId
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
