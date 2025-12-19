@@ -7,7 +7,7 @@
 //   )
 // }
 
-import {useMemo} from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -35,44 +35,25 @@ ChartJS.register(
 type Task = {
   id: string
   title?: string
-  dueDate?: string 
+  dueDate?: string
   completed?: boolean
+  userId?: string
 }
 
-const STORAGE_KEY = "study-buddy.tasks.v2"
-
+// ---------------- helpers ----------------
 
 function toISO(dateStr?: string): string {
   if (!dateStr) return ""
-  dateStr = dateStr.trim()
-  if (dateStr.includes("-")) {
-    const parts = dateStr.split("-")
-    const yearCandidate = typeof parts[0] === "string" ? parts[0].trim() : ""
-    // ensure parts[0] exists, we have at least 3 segments, and the first segment is a 4-digit year
-    if (parts.length >= 3 && yearCandidate.length === 4 && /^\d{4}$/.test(yearCandidate)) {
-      return dateStr
-    }
-  }
-
   if (dateStr.includes("/")) {
-    const [day = "", month = "", year = ""] = dateStr.split("/").map((x) => x.trim())
-    if (day && month && year) {
-      return `${year.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
-    }
+    const [d, m, y] = dateStr.split("/")
+    return `${y}-${m}-${d}`
   }
-  
-  const parseDate = new Date(dateStr)
-  if (Number.isNaN(parseDate.getTime())) return ""
-  return `${parseDate.getFullYear()}-${String(parseDate.getMonth() + 1).padStart(2, "0")}-${String(
-    parseDate.getDate()
-  ).padStart(2, "0")}`
+  return dateStr
 }
 
 function isoToDisplay(iso: string) {
-  if (!iso) return ""
-  const p = iso.split("-")
-  if (p.length !== 3) return iso
-  return `${p[2]}/${p[1]}/${p[0]}`
+  const [y, m, d] = iso.split("-")
+  return `${d}/${m}/${y}`
 }
 
 function lastNDatesISO(n: number) {
@@ -80,113 +61,132 @@ function lastNDatesISO(n: number) {
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`)
+    out.push(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate(),
+      ).padStart(2, "0")}`,
+    )
   }
   return out
 }
 
 function lastSixMonths() {
-  const outKey: string[] = []
-  const outLabel: string[] = []
+  const keys: string[] = []
+  const labels: string[] = []
   const now = new Date()
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` // YYYY-MM
-    const label = d.toLocaleString(undefined, { month: "short", year: "numeric" })
-    outKey.push(key)
-    outLabel.push(label)
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
+    labels.push(d.toLocaleString(undefined, { month: "short", year: "numeric" }))
   }
-  return { keys: outKey, labels: outLabel }
+  return { keys, labels }
 }
 
-export default function Charts() {
-  const tasks: Task[] = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
-    } catch {
-      return []
-    }
-  }, [])
+// ---------------- component ----------------
 
-  // normalize task dates to ISO for counting
+export default function Charts() {
+  const API = import.meta.env.VITE_API_URL || "http://localhost:3000/api"
+
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const ac = new AbortController()
+    async function load() {
+      try {
+        const res = await fetch(`${API}/tasks`, {
+          credentials: "include",
+          signal: ac.signal,
+        })
+        if (res.status === 401) {
+          setTasks([])
+          return
+        }
+        if (!res.ok) throw new Error(`Failed to fetch tasks: ${res.status}`)
+        const data = await res.json()
+        setTasks(data)
+      } catch (err: any) {
+        if (err?.name === "AbortError") return
+        console.error("chart fetch error:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+    return () => ac.abort()
+  }, [API])
+
   const tasksWithISO = useMemo(
     () =>
       tasks.map((t) => ({
         ...t,
-        _iso: toISO(t.dueDate),
-        _monthKey: toISO(t.dueDate).slice(0, 7), 
+        iso: toISO(t.dueDate),
+        monthKey: toISO(t.dueDate).slice(0, 7),
       })),
-    [tasks]
+    [tasks],
   )
 
-  // Pie: completed vs remaining
-  const completedCount = tasksWithISO.filter((t) => t.completed).length
-  const pendingCount = tasksWithISO.length - completedCount
+  if (loading) {
+    return <div className="p-6 text-black">Loading charts…</div>
+  }
+
+  // -------- Pie --------
+  const completed = tasksWithISO.filter((t) => t.completed).length
+  const pending = tasksWithISO.length - completed
+
   const pieData = {
     labels: ["Completed", "Remaining"],
     datasets: [
       {
-        data: [completedCount, pendingCount],
-        backgroundColor: ["#00BF00", "#F59E0B"],
-        borderColor: ["#00BF00", "#E39A06"],
-        borderWidth: 1,
+        data: [completed, pending],
+        backgroundColor: ["#16A34A", "#F59E0B"],
       },
     ],
   }
 
-  // Bar: percent completed for last 6 months
-  const { keys: monthKeys, labels: monthLabels } = lastSixMonths()
-  const barData = useMemo(() => {
-    const values = monthKeys.map((key) => {
-      const monthTasks = tasksWithISO.filter((t) => t._monthKey === key)
-      if (monthTasks.length === 0) return 0
-      const comp = monthTasks.filter((t) => t.completed).length
-      return Math.round((comp / monthTasks.length) * 100)
-    })
-    return {
-      labels: monthLabels,
-      datasets: [
-        {
-          label: "% Completed",
-          data: values,
-          backgroundColor: "#2563EB",
-        },
-      ],
-    }
-  }, [tasksWithISO, monthKeys, monthLabels])
+  // -------- Bar --------
+  const { keys, labels } = lastSixMonths()
+  const barData = {
+    labels,
+    datasets: [
+      {
+        label: "% Completed",
+        data: keys.map((k) => {
+          const m = tasksWithISO.filter((t) => t.monthKey === k)
+          if (!m.length) return 0
+          return Math.round((m.filter((t) => t.completed).length / m.length) * 100)
+        }),
+        backgroundColor: "#2563EB",
+      },
+    ],
+  }
 
-  // Worm graph (cumulative completed) last 14 days
+  // -------- Line --------
   const last14 = lastNDatesISO(14)
-  const wormData = useMemo(() => {
-    const daily = last14.map((iso) => tasksWithISO.filter((t) => t._iso === iso && t.completed).length)
-    const cum: number[] = []
-    daily.reduce((acc, cur, i) => {
-      const next = acc + cur
-      cum[i] = next
-      return next
-    }, 0)
-    return {
-      labels: last14.map(isoToDisplay),
-      datasets: [
-        {
-          label: "Cumulative completed (14d)",
-          data: cum,
-          borderColor: "#7C3AED",
-          backgroundColor: "rgba(124,58,237,0.12)",
-          tension: 0.3,
-          fill: true,
-          pointRadius: 3,
-        },
-      ],
-    }
-  }, [tasksWithISO, last14])
+  const cumulative: number[] = []
+  last14.reduce((acc, iso, i) => {
+    const next = acc + tasksWithISO.filter((t) => t.iso === iso && t.completed).length
+    cumulative[i] = next
+    return next
+  }, 0)
 
-  const commonOptions = {
-    plugins: {
-      legend: { display: true, position: "top" as const },
-      tooltip: { mode: "index" as const, intersect: false },
-    },
+  const lineData = {
+    labels: last14.map(isoToDisplay),
+    datasets: [
+      {
+        label: "Cumulative completed (14 days)",
+        data: cumulative,
+        borderColor: "#7C3AED",
+        backgroundColor: "rgba(124,58,237,0.15)",
+        fill: true,
+        tension: 0.3,
+      },
+    ],
+  }
+
+  const options = {
     maintainAspectRatio: false,
+    plugins: { legend: { display: true } },
   }
 
   return (
@@ -197,27 +197,25 @@ export default function Charts() {
         <div className="bg-white p-4 rounded shadow">
           <h3 className="font-semibold mb-2">Completion</h3>
           <div style={{ height: 220 }}>
-            <Pie data={pieData} options={{ ...commonOptions, maintainAspectRatio: false }} />
-          </div>
-          <div className="mt-3 text-sm">
-            <div>Completed: <strong>{completedCount}</strong></div>
-            <div>Remaining: <strong>{pendingCount}</strong></div>
-            <div>Total tasks: <strong>{tasksWithISO.length}</strong></div>
+            <Pie data={pieData} options={options} />
           </div>
         </div>
 
-        <div className="col-span-1 md:col-span-2 bg-white p-4 rounded shadow">
+        <div className="md:col-span-2 bg-white p-4 rounded shadow">
           <h3 className="font-semibold mb-2">Progress (last 6 months)</h3>
           <div style={{ height: 260 }}>
-            <Bar data={barData} options={{ ...commonOptions, scales: { y: { beginAtZero: true, max: 100 } } }} />
+            <Bar
+              data={barData}
+              options={{ ...options, scales: { y: { max: 100, beginAtZero: true } } }}
+            />
           </div>
         </div>
       </div>
 
       <div className="mt-6 bg-white p-4 rounded shadow">
-        <h3 className="font-semibold mb-2">Worm graph — last 14 days (cumulative)</h3>
+        <h3 className="font-semibold mb-2">Worm graph (last 14 days)</h3>
         <div style={{ height: 180 }}>
-          <Line data={wormData} options={{ ...commonOptions, scales: { y: { beginAtZero: true } } }} />
+          <Line data={lineData} options={options} />
         </div>
       </div>
     </div>
