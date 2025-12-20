@@ -11,6 +11,7 @@ import session from "express-session"
 
 import auth from "./routes/auth.js"
 import assignments from "./routes/assignments.js"
+import groupStudy from "./routes/groupStudy.js"
 import { db } from "./db.js"
 import tasksRoutes from "./routes/tasks.js"
 
@@ -43,6 +44,7 @@ app.use("/public", express.static(path.join(import.meta.dirname, "public")))
 
 app.use("/", auth)
 app.use("/assignments", assignments)
+app.use("/groups", groupStudy)
 
 app.listen(PORT, () => {
   console.log(`express-app listening on port ${PORT}`)
