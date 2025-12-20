@@ -19,6 +19,7 @@ export default function GroupStudy() {
   const [groupMembers, setGroupMembers] = useState<string[]>([])
   const [newGroupName, setNewGroupName] = useState("")
   const [inviteUsername, setInviteUsername] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   const send = () => {
@@ -272,20 +273,38 @@ export default function GroupStudy() {
           </div>
 
           <div className="mt-4">
-            <div className="text-white font-semibold">Users</div>
+            <div className="text-white font-semibold">Invite Users</div>
+            <div className="mt-2">
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search users to invite"
+                className="w-full px-3 py-2 rounded bg-white/10 text-white outline-none"
+                disabled={!selectedGroup}
+              />
+            </div>
             <div className="mt-2 space-y-2 max-h-40 overflow-auto">
               {users.length === 0 ? (
                 <div className="text-sm text-white/60">No other users</div>
               ) : (
-                users
-                  .filter((u) => {
-                    // hide users who are already members of the selected group
+                (() => {
+                  const base = users.filter((u) => {
                     if (selectedGroup && groupMembers.includes(u.id)) return false
-                    // hide users who already have a pending invite for this group (outgoing)
                     const hasPending = sentInvitations.some((inv) => inv.to?.id === u.id && inv.group?.id === selectedGroup && inv.status === "PENDING")
                     return !hasPending
                   })
-                  .map((u) => (
+                  const q = searchQuery.trim().toLowerCase()
+                  const matched = q ? base.filter((u) => (u.username || "").toLowerCase().includes(q)) : []
+
+                  if (q && matched.length === 0) {
+                    return <div className="text-sm text-white/60">No user found</div>
+                  }
+
+                  if (!q) {
+                    return <div className="text-sm text-white/60">Type to search users</div>
+                  }
+
+                  return matched.map((u) => (
                     <div key={u.id} className="flex items-center justify-between bg-white/5 p-2 rounded">
                       <div className="text-sm text-white">{u.username}</div>
                       <div>
@@ -300,6 +319,7 @@ export default function GroupStudy() {
                       </div>
                     </div>
                   ))
+                })()
               )}
             </div>
           </div>
