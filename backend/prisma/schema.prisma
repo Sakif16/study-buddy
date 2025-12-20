@@ -23,6 +23,12 @@ model user {
   createdAt   DateTime     @default(now())
   tasks       Task[]
   assignments assignment[]
+
+  ownedGroups     Group[]        @relation("GroupOwner")
+  groupMembers    GroupMember[]
+  sentInvites     Invitation[]   @relation("InvitationFrom")
+  receivedInvites Invitation[]   @relation("InvitationTo")
+  messages        Message[]
 }
 
 model assignment {
@@ -47,4 +53,57 @@ model Task {
   userId    String   @db.ObjectId
   user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+}
+
+model Group {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  ownerId   String       @db.ObjectId
+  owner     user         @relation("GroupOwner", fields: [ownerId], references: [id])
+  members   GroupMember[]
+  invitations Invitation[]
+  messages  Message[]
+  createdAt DateTime     @default(now())
+}
+
+model GroupMember {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  groupId  String @db.ObjectId
+  userId   String @db.ObjectId
+  role     String @default("member")
+
+  group    Group  @relation(fields: [groupId], references: [id])
+  user     user   @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model Invitation {
+  id        String            @id @default(auto()) @map("_id") @db.ObjectId
+  groupId   String            @db.ObjectId
+  fromId    String            @db.ObjectId
+  toId      String            @db.ObjectId
+  status    InvitationStatus  @default(PENDING)
+  createdAt DateTime          @default(now())
+
+  group     Group             @relation(fields: [groupId], references: [id])
+  from      user              @relation("InvitationFrom", fields: [fromId], references: [id])
+  to        user              @relation("InvitationTo", fields: [toId], references: [id])
+}
+
+model Message {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  groupId   String   @db.ObjectId
+  senderId  String   @db.ObjectId
+  content   String
+  createdAt DateTime @default(now())
+
+  group     Group    @relation(fields: [groupId], references: [id])
+  sender    user     @relation(fields: [senderId], references: [id])
 }
