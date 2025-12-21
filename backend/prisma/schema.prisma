@@ -23,6 +23,8 @@ model user {
   createdAt   DateTime     @default(now())
   tasks       Task[]
   assignments assignment[]
+  notes       Note[]
+  categories   Category[]
 
   ownedGroups     Group[]        @relation("GroupOwner")
   groupMembers    GroupMember[]
@@ -50,6 +52,26 @@ model Task {
   dueDate   String?
   dueTime   String?
   completed Boolean  @default(false)
+  userId    String   @db.ObjectId
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Note {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  content   String?
+  category  String   @default("1")
+  userId    String   @db.ObjectId
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  color     String
   userId    String   @db.ObjectId
   user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())

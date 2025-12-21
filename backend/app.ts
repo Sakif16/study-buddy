@@ -14,6 +14,8 @@ import assignments from "./routes/assignments.js"
 import groupStudy from "./routes/groupStudy.js"
 import { db } from "./db.js"
 import tasksRoutes from "./routes/tasks.js"
+import notesRoutes from "./routes/notes.js"
+import categoriesRoutes from "./routes/categories.js"
 
 const app = express()
 const PORT = parseInt(process.env.PORT ?? "3000")
@@ -45,6 +47,8 @@ app.use("/public", express.static(path.join(import.meta.dirname, "public")))
 app.use("/", auth)
 app.use("/assignments", assignments)
 app.use("/groups", groupStudy)
+app.use("/api/notes", notesRoutes)
+app.use("/api/categories", categoriesRoutes)
 
 app.listen(PORT, () => {
   console.log(`express-app listening on port ${PORT}`)
@@ -61,3 +65,4 @@ app.get("/username/:username", async (req, res) => {
 })
 
 app.use("/api/tasks", tasksRoutes)
+

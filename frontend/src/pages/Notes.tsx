@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { BACKEND_URL } from '../constants'
 import { Trash2, Plus, Search, FolderPlus, Edit2, Save, X, Heart, Star } from 'lucide-react';
 
 interface Note {
@@ -51,25 +52,42 @@ export default function Notes() {
     'bg-orange-500',
   ];
 
-  // Load notes from localStorage
+  // Load notes and categories from backend
   useEffect(() => {
-    const savedNotes = localStorage.getItem('studyNotes');
-    const savedCategories = localStorage.getItem('noteCategories');
+    // load categories and notes from backend for authenticated user
+    async function loadAll() {
+      try {
+        const [catsRes, notesRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/categories`, { credentials: 'include' }),
+          fetch(`${BACKEND_URL}/api/notes`, { credentials: 'include' }),
+        ])
 
-    if (savedNotes) {
-      const parsedNotes = JSON.parse(savedNotes);
-      setNotes(
-        parsedNotes.map((note: any) => ({
-          ...note,
-          createdAt: new Date(note.createdAt),
-          updatedAt: new Date(note.updatedAt),
-        }))
-      );
+        if (catsRes.ok) {
+          const cats = await catsRes.json()
+          if (Array.isArray(cats) && cats.length) {
+            setCategories(cats.map((c: any) => ({ id: c.id, name: c.name, color: c.color })))
+          }
+        }
+
+        if (notesRes.ok) {
+          const data = await notesRes.json()
+          const mapped = data.map((n: any) => ({
+            id: n.id,
+            title: n.title,
+            content: n.content ?? '',
+            category: n.category ?? '1',
+            createdAt: new Date(n.createdAt),
+            updatedAt: new Date(n.updatedAt),
+            isFavorite: false,
+          }))
+          setNotes(mapped)
+        }
+      } catch (err) {
+        console.error('failed to load notes or categories', err)
+      }
     }
 
-    if (savedCategories) {
-      setCategories(JSON.parse(savedCategories));
-    }
+    loadAll()
   }, []);
 
   // Save notes to localStorage
@@ -77,30 +95,61 @@ export default function Notes() {
     localStorage.setItem('studyNotes', JSON.stringify(notes));
   }, [notes]);
 
-  // Save categories to localStorage
-  useEffect(() => {
-    localStorage.setItem('noteCategories', JSON.stringify(categories));
-  }, [categories]);
+  // categories are persisted on backend; no localStorage sync
 
-  const createNewNote = () => {
+  const createNewNote = async () => {
+    // create on server (requires auth); fallback to local if fails
+    try {
+      const categoryToUse = selectedCategory !== 'all' ? selectedCategory : editCategory || '1'
+      const payload = { title: 'Untitled Note', content: '', category: categoryToUse }
+      const res = await fetch(`${BACKEND_URL}/api/notes`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        const n = await res.json()
+        const newNote: Note = {
+          id: n.id,
+          title: n.title,
+          content: n.content ?? '',
+          category: n.category ?? '1',
+          createdAt: new Date(n.createdAt),
+          updatedAt: new Date(n.updatedAt),
+          isFavorite: false,
+        }
+        setNotes([newNote, ...notes])
+        setSelectedNote(newNote)
+        setIsEditing(true)
+        setEditTitle(newNote.title)
+        setEditContent(newNote.content)
+        setEditCategory(newNote.category)
+        return
+      }
+    } catch (err) {
+      console.error('create note failed', err)
+    }
+
+    // fallback local-only
     const newNote: Note = {
       id: Date.now().toString(),
       title: 'Untitled Note',
       content: '',
-      category: '1',
+      category: selectedCategory !== 'all' ? selectedCategory : editCategory || '1',
       createdAt: new Date(),
       updatedAt: new Date(),
       isFavorite: false,
-    };
-    setNotes([newNote, ...notes]);
-    setSelectedNote(newNote);
-    setIsEditing(true);
-    setEditTitle(newNote.title);
-    setEditContent(newNote.content);
-    setEditCategory(newNote.category);
-  };
+    }
+    setNotes([newNote, ...notes])
+    setSelectedNote(newNote)
+    setIsEditing(true)
+    setEditTitle(newNote.title)
+    setEditContent(newNote.content)
+    setEditCategory(newNote.category)
+  }
 
-  const updateNote = () => {
+  const updateNote = async () => {
     if (!selectedNote) return;
 
     const updatedNote: Note = {
@@ -111,32 +160,85 @@ export default function Notes() {
       updatedAt: new Date(),
     };
 
-    setNotes(notes.map((n) => (n.id === selectedNote.id ? updatedNote : n)));
-    setSelectedNote(updatedNote);
-    setIsEditing(false);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/notes/${selectedNote.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: updatedNote.title, content: updatedNote.content, category: updatedNote.category }),
+      })
+      if (res.ok) {
+        const n = await res.json()
+        const serverNote: Note = {
+          id: n.id,
+          title: n.title,
+          content: n.content ?? '',
+          category: n.category ?? updatedNote.category,
+          createdAt: new Date(n.createdAt),
+          updatedAt: new Date(n.updatedAt),
+          isFavorite: updatedNote.isFavorite,
+        }
+        setNotes(notes.map((it) => (it.id === serverNote.id ? serverNote : it)))
+        setSelectedNote(serverNote)
+      } else {
+        // fallback: update locally
+        setNotes(notes.map((n) => (n.id === selectedNote.id ? updatedNote : n)))
+        setSelectedNote(updatedNote)
+      }
+    } catch (err) {
+      console.error('update note failed', err)
+      setNotes(notes.map((n) => (n.id === selectedNote.id ? updatedNote : n)))
+      setSelectedNote(updatedNote)
+    }
+
+    setIsEditing(false)
   };
 
   const deleteNote = (id: string) => {
-    setNotes(notes.filter((n) => n.id !== id));
-    if (selectedNote?.id === id) {
-      setSelectedNote(null);
-    }
+    ; (async () => {
+      try {
+        await fetch(`${BACKEND_URL}/api/notes/${id}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })
+      } catch (err) {
+        console.error('delete note failed', err)
+      }
+    })()
+
+    setNotes(notes.filter((n) => n.id !== id))
+    if (selectedNote?.id === id) setSelectedNote(null)
   };
 
-  const addCategory = () => {
+  const addCategory = async () => {
     if (!newCategoryName.trim()) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/categories`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newCategoryName, color: newCategoryColor }),
+      })
+      if (res.ok) {
+        const c = await res.json()
+        const newCategory: Category = { id: c.id, name: c.name, color: c.color }
+        setCategories([...categories, newCategory])
+      }
+    } catch (err) {
+      console.error('create category failed', err)
+      // fallback local-only
+      const newCategory: Category = {
+        id: Date.now().toString(),
+        name: newCategoryName,
+        color: newCategoryColor,
+      }
+      setCategories([...categories, newCategory])
+    }
 
-    const newCategory: Category = {
-      id: Date.now().toString(),
-      name: newCategoryName,
-      color: newCategoryColor,
-    };
-
-    setCategories([...categories, newCategory]);
-    setNewCategoryName('');
-    setNewCategoryColor('bg-indigo-500');
-    setShowNewCategoryForm(false);
-  };
+    setNewCategoryName('')
+    setNewCategoryColor('bg-indigo-500')
+    setShowNewCategoryForm(false)
+  }
 
   const filteredNotes = notes.filter((note) => {
     const matchesSearch =
@@ -200,8 +302,8 @@ export default function Notes() {
                     setSelectedCategory('all');
                   }}
                   className={`w-full text-left px-3 py-2 rounded-lg transition flex items-center gap-2 ${showFavoritesOnly
-                      ? 'bg-amber-500 text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-amber-500 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
                     }`}
                 >
                   <Heart size={18} fill={showFavoritesOnly ? 'currentColor' : 'none'} />
@@ -269,8 +371,8 @@ export default function Notes() {
                   <button
                     onClick={() => setSelectedCategory('all')}
                     className={`w-full text-left px-3 py-2 rounded-lg transition ${selectedCategory === 'all'
-                        ? 'bg-[#0DB19B] text-white'
-                        : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-[#0DB19B] text-white'
+                      : 'text-gray-700 hover:bg-gray-100'
                       }`}
                   >
                     All Notes ({notes.length})
@@ -283,8 +385,8 @@ export default function Notes() {
                         key={category.id}
                         onClick={() => setSelectedCategory(category.id)}
                         className={`w-full text-left px-3 py-2 rounded-lg transition flex items-center gap-2 ${selectedCategory === category.id
-                            ? 'bg-[#0DB19B] text-white'
-                            : 'text-gray-700 hover:bg-gray-100'
+                          ? 'bg-[#0DB19B] text-white'
+                          : 'text-gray-700 hover:bg-gray-100'
                           }`}
                       >
                         <div className={`w-3 h-3 rounded-full ${category.color}`} />
@@ -337,8 +439,8 @@ export default function Notes() {
                             setIsEditing(false);
                           }}
                           className={`w-full text-left p-3 rounded-lg transition ${selectedNote?.id === note.id
-                              ? 'bg-[#0DB19B] text-white ring-2 ring-[#0DB19B]'
-                              : 'bg-white hover:bg-gray-100'
+                            ? 'bg-[#0DB19B] text-white ring-2 ring-[#0DB19B]'
+                            : 'bg-white hover:bg-gray-100'
                             }`}
                         >
                           <div className="flex items-start gap-2">
@@ -411,8 +513,8 @@ export default function Notes() {
                             <button
                               onClick={() => toggleFavorite(selectedNote.id)}
                               className={`p-2 rounded-lg transition flex items-center gap-1 ${selectedNote.isFavorite
-                                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                                  : 'bg-gray-400 hover:bg-gray-500 text-white'
+                                ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                                : 'bg-gray-400 hover:bg-gray-500 text-white'
                                 }`}
                               title={selectedNote.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                             >
