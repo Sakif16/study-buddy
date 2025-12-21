@@ -228,7 +228,7 @@ export default function GroupStudy() {
                     >
                       {g.name}
                     </button>
-                    <div className="text-xs text-white/70 ml-2">{g.ownerId === g.ownerId ? "" : ""}</div>
+                    <div className="text-xs text-white/70 ml-2">{g.ownerId === currentUserId ? "Owner" : ""}</div>
                   </div>
                 ))
               )}
