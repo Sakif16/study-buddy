@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { startPomodoro, stopPomodoro, getPomodoroStats } from "../PomodoroApi";
 
 export default function Motivation() {
 	// Pomodoro settings (minutes)
@@ -82,11 +83,32 @@ export default function Motivation() {
 	// Auto-switch sessions when time reaches zero (use functional update to avoid stale isWork)
 	useEffect(() => {
 		if (timeLeft !== 0) return;
-		setIsWork((prev) => {
-			const next = !prev;
-			setTimeLeft(next ? workMinutes * 60 : breakMinutes * 60);
-			return next;
-		});
+
+		// When timer reaches zero, stop the current backend session (if any),
+		// then switch to the next session type and reset timeLeft.
+		;(async () => {
+			if (currentSessionId) {
+				try {
+					await stopPomodoro(currentSessionId)
+					// update global stats so Streak page updates immediately
+					try {
+						const stats = await getPomodoroStats()
+						window.dispatchEvent(new CustomEvent("pomodoro:updated", { detail: stats }))
+					} catch (e) {
+						// ignore
+					}
+				} catch (err) {
+					console.error("failed to auto-stop pomodoro", err)
+				}
+				setCurrentSessionId(null)
+			}
+
+			setIsWork((prev) => {
+				const next = !prev
+				setTimeLeft(next ? workMinutes * 60 : breakMinutes * 60)
+				return next
+			})
+		})()
 	}, [timeLeft, workMinutes, breakMinutes]);
 
 	// Helpers
@@ -99,12 +121,38 @@ export default function Motivation() {
 		return `${m}:${sec}`;
 	};
 
-	const toggleStart = () =>
-		setIsRunning((prev) => {
-			const next = !prev;
-			if (next) setHasStarted(true); // mark started when transitioned to running
-			return next;
-		});
+	const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+
+	const toggleStart = async () => {
+		if (!isRunning) {
+			// starting: create a session on the backend
+			try {
+				const created = await startPomodoro(isWork ? "work" : "break");
+				setCurrentSessionId(created.id ?? null);
+				setHasStarted(true);
+				setIsRunning(true);
+			} catch (err) {
+				console.error("failed to start pomodoro", err);
+			}
+		} else {
+			// stopping: close session on backend
+			try {
+				if (currentSessionId) {
+					await stopPomodoro(currentSessionId);
+					// update stats for Streak immediately
+					try {
+						const stats = await getPomodoroStats()
+						window.dispatchEvent(new CustomEvent("pomodoro:updated", { detail: stats }))
+					} catch (e) {}
+				}
+			} catch (err) {
+				console.error("failed to stop pomodoro", err);
+			} finally {
+				setCurrentSessionId(null);
+				setIsRunning(false);
+			}
+		}
+	};
 
 	const resetTimer = () => {
 		setIsRunning(false);

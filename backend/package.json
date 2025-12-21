@@ -3,7 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "tsx watch app.ts"
+    "dev": "tsx watch app.ts",
+    "seed:quotes": "tsx ./scripts/seedQuotes.mjs"
   },
   "packageManager": "pnpm@10.14.0",
   "type": "module",
@@ -29,4 +30,5 @@
     "prisma": "^6.19.1",
     "tsx": "^4.20.6"
   }
+  
 }

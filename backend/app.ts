@@ -14,8 +14,13 @@ import assignments from "./routes/assignments.js"
 import groupStudy from "./routes/groupStudy.js"
 import { db } from "./db.js"
 import tasksRoutes from "./routes/tasks.js"
+<<<<<<< HEAD
+import pomodoro from "./routes/pomodoro.js"
+import quotes from "./routes/quotes.js"
+=======
 import notesRoutes from "./routes/notes.js"
 import categoriesRoutes from "./routes/categories.js"
+>>>>>>> master
 
 const app = express()
 const PORT = parseInt(process.env.PORT ?? "3000")
@@ -65,4 +70,9 @@ app.get("/username/:username", async (req, res) => {
 })
 
 app.use("/api/tasks", tasksRoutes)
+<<<<<<< HEAD
+app.use("/api/pomodoro", pomodoro)
+app.use("/api/quotes", quotes)
+=======
+>>>>>>> master
 

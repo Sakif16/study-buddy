@@ -7,7 +7,8 @@
 //   )
 // }
 
-import { useMemo } from "react"
+import { useMemo, useEffect, useState } from "react"
+import { getPomodoroStats } from "../PomodoroApi"
 
 type Task = {
   id: string
@@ -43,11 +44,44 @@ function toISO(dateStr?: string): string {
 }
 
 export default function Streak() {
+  const [backendTotalHours, setBackendTotalHours] = useState<number | null>(null)
+  const [backendCurrentStreak, setBackendCurrentStreak] = useState<number | null>(null)
+
   const tasks: Task[] = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
     } catch {
       return []
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const stats = await getPomodoroStats()
+        if (!mounted) return
+        setBackendTotalHours(stats.totalHours ?? Math.floor((stats.totalSeconds ?? 0) / 3600))
+        setBackendCurrentStreak(stats.currentStreak ?? 0)
+      } catch (err) {
+        // ignore — fallback to local calculation
+        console.error("failed to load pomodoro stats", err)
+      }
+    })()
+    // listen for updates when a pomodoro session is stopped
+    const onUpdate = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent).detail
+        if (detail) {
+          setBackendTotalHours(detail.totalHours ?? Math.floor((detail.totalSeconds ?? 0) / 3600))
+          setBackendCurrentStreak(detail.currentStreak ?? 0)
+        }
+      } catch (err) {}
+    }
+    window.addEventListener("pomodoro:updated", onUpdate as EventListener)
+    return () => {
+      mounted = false
+      window.removeEventListener("pomodoro:updated", onUpdate as EventListener)
     }
   }, [])
 
@@ -63,11 +97,11 @@ export default function Streak() {
   // Calculate stats
   const completedCount = tasksWithISO.filter((t) => t.completed).length
 
-  // Total hours studied (estimated: 1 task = 1 hour, or customize as needed)
-  const totalHours = completedCount
+  // Prefer backend total hours if available
+  const totalHours = backendTotalHours ?? completedCount
 
   // Daily study streak (count consecutive days with at least 1 completed task)
-  const dailyStreak = useMemo(() => {
+  const localDailyStreak = useMemo(() => {
     let streak = 0
     const today = new Date()
     for (let i = 0; i < 365; i++) {
@@ -83,6 +117,8 @@ export default function Streak() {
     }
     return streak
   }, [tasksWithISO])
+
+  const dailyStreak = backendCurrentStreak ?? localDailyStreak
 
   // Tasks completed
   const tasksCompleted = completedCount

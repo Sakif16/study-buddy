@@ -1,0 +1,45 @@
+export async function startPomodoro(type: "work" | "break" = "work") {
+  const res = await fetch("http://localhost:3000/api/pomodoro/start", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type }),
+  })
+  if (!res.ok) throw new Error("failed to start pomodoro")
+  return res.json()
+}
+
+export async function stopPomodoro(sessionId: string) {
+  const res = await fetch("http://localhost:3000/api/pomodoro/stop", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId }),
+  })
+  if (!res.ok) throw new Error("failed to stop pomodoro")
+  return res.json()
+}
+
+export async function listPomodoros() {
+  const res = await fetch("http://localhost:3000/api/pomodoro/sessions", {
+    credentials: "include",
+  })
+  if (!res.ok) throw new Error("failed to list sessions")
+  return res.json()
+}
+
+export async function getPomodoroTotals() {
+  const res = await fetch("http://localhost:3000/api/pomodoro/totals", {
+    credentials: "include",
+  })
+  if (!res.ok) throw new Error("failed to get totals")
+  return res.json()
+}
+
+export async function getPomodoroStats() {
+  const res = await fetch("http://localhost:3000/api/pomodoro/stats", {
+    credentials: "include",
+  })
+  if (!res.ok) throw new Error("failed to get stats")
+  return res.json()
+}
