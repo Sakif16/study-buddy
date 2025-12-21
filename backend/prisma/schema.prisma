@@ -23,6 +23,7 @@ model user {
   createdAt   DateTime     @default(now())
   tasks       Task[]
   assignments assignment[]
+  pomodoroSessions PomodoroSession[]
 
   ownedGroups     Group[]        @relation("GroupOwner")
   groupMembers    GroupMember[]
@@ -106,4 +107,22 @@ model Message {
 
   group     Group    @relation(fields: [groupId], references: [id])
   sender    user     @relation(fields: [senderId], references: [id])
+}
+
+model Quote {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  text      String
+  author    String? 
+  createdAt DateTime @default(now())
+}
+
+model PomodoroSession {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startAt   DateTime
+  endAt     DateTime?
+  duration  Int?     // duration in seconds
+  type      String   @default("work") // "work" or "break"
+  createdAt DateTime @default(now())
 }
