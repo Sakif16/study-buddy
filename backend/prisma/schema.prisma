@@ -63,6 +63,7 @@ model Note {
   title     String
   content   String?
   category  String   @default("1")
+  isFavorite Boolean  @default(false)
   userId    String   @db.ObjectId
   user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
