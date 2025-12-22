@@ -78,7 +78,7 @@ export default function Notes() {
             category: n.category ?? '1',
             createdAt: new Date(n.createdAt),
             updatedAt: new Date(n.updatedAt),
-            isFavorite: false,
+            isFavorite: !!n.isFavorite,
           }))
           setNotes(mapped)
         }
@@ -117,7 +117,7 @@ export default function Notes() {
           category: n.category ?? '1',
           createdAt: new Date(n.createdAt),
           updatedAt: new Date(n.updatedAt),
-          isFavorite: false,
+          isFavorite: !!n.isFavorite,
         }
         setNotes([newNote, ...notes])
         setSelectedNote(newNote)
@@ -176,7 +176,7 @@ export default function Notes() {
           category: n.category ?? updatedNote.category,
           createdAt: new Date(n.createdAt),
           updatedAt: new Date(n.updatedAt),
-          isFavorite: updatedNote.isFavorite,
+          isFavorite: typeof n.isFavorite === 'boolean' ? n.isFavorite : updatedNote.isFavorite,
         }
         setNotes(notes.map((it) => (it.id === serverNote.id ? serverNote : it)))
         setSelectedNote(serverNote)
@@ -253,14 +253,30 @@ export default function Notes() {
   const favoriteNotes = notes.filter((note) => note.isFavorite);
 
   const toggleFavorite = (id: string) => {
+    // optimistic update
     const updatedNotes = notes.map((note) =>
       note.id === id ? { ...note, isFavorite: !note.isFavorite } : note
     );
     setNotes(updatedNotes);
     const updatedNote = updatedNotes.find((n) => n.id === id);
-    if (updatedNote && selectedNote?.id === id) {
-      setSelectedNote(updatedNote);
-    }
+    if (updatedNote && selectedNote?.id === id) setSelectedNote(updatedNote);
+
+    // send to backend; revert on failure
+    (async () => {
+      try {
+        await fetch(`${BACKEND_URL}/api/notes/${id}/favorite`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isFavorite: updatedNote?.isFavorite }),
+        })
+      } catch (err) {
+        console.error('favorite toggle failed', err)
+        // revert
+        setNotes((cur) => cur.map((note) => (note.id === id ? { ...note, isFavorite: !note.isFavorite } : note)))
+        if (selectedNote?.id === id) setSelectedNote((s) => s ? { ...s, isFavorite: !s.isFavorite } : s)
+      }
+    })()
   };
 
   const getCategoryColor = (categoryId: string) => {
