@@ -10,6 +10,7 @@ import {
 
 import Navbar from "./components/Navbar"
 import Footer from "./components/Footer"
+import { PomodoroProvider } from "./contexts/PomodoroContext"
 
 import Home from "./pages/Home"
 import Assignments from "./pages/Assignments"
@@ -67,34 +68,36 @@ function AppContent() {
 
   return (
     <AuthApi value={{ auth, setAuth, user, setUser }}>
-      <div className="app-root min-h-screen bg-[#0DB19B] text-black flex flex-col">
-        {!hideNavbar && <Navbar />}
+      <PomodoroProvider>
+        <div className="app-root min-h-screen bg-[#0DB19B] text-black flex flex-col">
+          {!hideNavbar && <Navbar />}
 
-        <main
-          className="flex-1 my-6 mx-auto py-0 px-4"
-          style={{ maxWidth: 1100 }}
-        >
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route element={<ProtectedRoutes />}>
-              <Route path="/" element={<Home />} />
-              <Route path="/logout" element={<Logout />} />
-              <Route path="/assignments" element={<Assignments />} />
-              <Route path="/wordle" element={<Wordle />} />
-              <Route path="/streak" element={<Streak />} />
-              <Route path="/motivation" element={<Motivation />} />
-              <Route path="/group-study" element={<GroupStudy />} />
-              <Route path="/ai-buddy" element={<AIBuddy />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/charts" element={<Charts />} />
-              <Route path="/notes" element={<Notes />} />
-              <Route path="/missed-tasks" element={<MissedTasks />} />
-            </Route>
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+          <main
+            className="flex-1 my-6 mx-auto py-0 px-4"
+            style={{ maxWidth: 1100 }}
+          >
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route element={<ProtectedRoutes />}>
+                <Route path="/" element={<Home />} />
+                <Route path="/logout" element={<Logout />} />
+                <Route path="/assignments" element={<Assignments />} />
+                <Route path="/wordle" element={<Wordle />} />
+                <Route path="/streak" element={<Streak />} />
+                <Route path="/motivation" element={<Motivation />} />
+                <Route path="/group-study" element={<GroupStudy />} />
+                <Route path="/ai-buddy" element={<AIBuddy />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/charts" element={<Charts />} />
+                <Route path="/notes" element={<Notes />} />
+                <Route path="/missed-tasks" element={<MissedTasks />} />
+              </Route>
+            </Routes>
+          </main>
+          <Footer />
+        </div>
+      </PomodoroProvider>
     </AuthApi>
   )
 }

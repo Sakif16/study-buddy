@@ -140,11 +140,13 @@ router.get("/stats", async (req, res) => {
     // Build daily totals array (sorted ascending by date)
     const dailyTotals = Array.from(dailyMap.entries()).map(([date, seconds]) => ({ date, seconds }))
 
-    // Compute streaks: consecutive days up to today (UTC) where seconds > 0
+    // Compute streaks: consecutive days up to today (UTC) where daily seconds >= threshold
+    // Require at least 2 minutes (120 seconds) of pomodoro use in a day to count toward a streak
+    const MIN_ACTIVE_SECONDS = 120
     const todayKey = new Date().toISOString().slice(0, 10)
 
-    // Create a set of days with activity for quick lookup
-    const activeDays = new Set(dailyTotals.filter((d) => d.seconds > 0).map((d) => d.date))
+    // Create a set of days with activity for quick lookup (only days with >= MIN_ACTIVE_SECONDS count)
+    const activeDays = new Set(dailyTotals.filter((d) => d.seconds >= MIN_ACTIVE_SECONDS).map((d) => d.date))
 
     // current streak: count back from today while day is active
     let currentStreak = 0
