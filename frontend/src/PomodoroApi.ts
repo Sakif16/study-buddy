@@ -37,7 +37,8 @@ export async function getPomodoroTotals() {
 }
 
 export async function getPomodoroStats() {
-  const res = await fetch("http://localhost:3000/api/pomodoro/stats", {
+  const tzOffset = new Date().getTimezoneOffset()
+  const res = await fetch(`http://localhost:3000/api/pomodoro/stats?tzOffsetMinutes=${tzOffset}`, {
     credentials: "include",
   })
   if (!res.ok) throw new Error("failed to get stats")
