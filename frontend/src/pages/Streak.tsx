@@ -8,7 +8,7 @@
 // }
 
 import { useMemo, useEffect, useState } from "react"
-import { getPomodoroStats } from "../PomodoroApi"
+import { getPomodoroStats, getPomodoroTotals } from "../PomodoroApi"
 
 type Task = {
   id: string
@@ -57,26 +57,42 @@ export default function Streak() {
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        const stats = await getPomodoroStats()
-        if (!mounted) return
-        setBackendTotalHours(stats.totalHours ?? Math.floor((stats.totalSeconds ?? 0) / 3600))
-        setBackendCurrentStreak(stats.currentStreak ?? 0)
-      } catch (err) {
-        // ignore — fallback to local calculation
-        console.error("failed to load pomodoro stats", err)
-      }
-    })()
+      ; (async () => {
+        try {
+          const totals = await getPomodoroTotals()
+          if (!mounted) return
+          setBackendTotalHours(totals.totalHours ?? Math.floor((totals.totalMinutes ?? 0) / 60))
+          // fetch streak from stats (still authoritative for streak)
+          try {
+            const stats = await getPomodoroStats()
+            if (!mounted) return
+            setBackendCurrentStreak(stats.currentStreak ?? 0)
+          } catch (e) {
+            // ignore
+          }
+        } catch (err) {
+          // ignore — fallback to local calculation
+          console.error("failed to load pomodoro stats", err)
+        }
+      })()
     // listen for updates when a pomodoro session is stopped
     const onUpdate = (e: Event) => {
       try {
         const detail = (e as CustomEvent).detail
         if (detail) {
-          setBackendTotalHours(detail.totalHours ?? Math.floor((detail.totalSeconds ?? 0) / 3600))
+          // detail comes from stats; fetch totals to ensure hours are calculated from minutes server-side
+          void (async () => {
+            try {
+              const totals = await getPomodoroTotals()
+              setBackendTotalHours(totals.totalHours ?? Math.floor((totals.totalMinutes ?? 0) / 60))
+            } catch (e) {
+              // fallback to any provided totalHours
+              setBackendTotalHours(detail.totalHours ?? Math.floor((detail.totalSeconds ?? 0) / 3600))
+            }
+          })()
           setBackendCurrentStreak(detail.currentStreak ?? 0)
         }
-      } catch (err) {}
+      } catch (err) { }
     }
     window.addEventListener("pomodoro:updated", onUpdate as EventListener)
     return () => {
@@ -163,7 +179,7 @@ export default function Streak() {
         </div>
       </div>
 
-            {/* Badges */}
+      {/* Badges */}
       <div className="bg-white p-6 rounded shadow">
         <h3 className="font-semibold text-lg mb-4">Achievements</h3>
         <div className="flex justify-center gap-6 flex-wrap">
@@ -184,4 +200,5 @@ export default function Streak() {
         </div>
       </div>
     </div>
-  )}
+  )
+}

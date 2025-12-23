@@ -1,4 +1,5 @@
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 
 import "dotenv/config"
 
@@ -17,6 +18,7 @@ import tasksRoutes from "./routes/tasks.js"
 
 import pomodoro from "./routes/pomodoro.js"
 import quotes from "./routes/quotes.js"
+import noiseFiles from "./routes/noiseFiles.js"
 
 import notesRoutes from "./routes/notes.js"
 import categoriesRoutes from "./routes/categories.js"
@@ -46,7 +48,9 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(express.text())
 
-app.use("/public", express.static(path.join(import.meta.dirname, "public")))
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+app.use("/public", express.static(path.join(__dirname, "public")))
 
 app.use("/", auth)
 app.use("/assignments", assignments)
@@ -72,3 +76,4 @@ app.use("/api/tasks", tasksRoutes)
 
 app.use("/api/pomodoro", pomodoro)
 app.use("/api/quotes", quotes)
+app.use("/api/noise", noiseFiles)

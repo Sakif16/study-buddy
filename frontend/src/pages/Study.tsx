@@ -26,7 +26,14 @@ export default function Motivation() {
 	const initialQuote: string = quotes.current[idx] ?? quotes.current[0] ?? "";
 	const [quote, setQuote] = useState<string>(initialQuote);
 
-    
+	// Pick a new random quote (used by the "New Quote" button)
+	const newQuote = () => {
+		if (quotes.current.length === 0) return
+		const i = Math.floor(Math.random() * quotes.current.length)
+		setQuote(quotes.current[i] ?? quotes.current[0] ?? "")
+	}
+
+
 
 	// control initial reveal
 	const [showMotivation, setShowMotivation] = useState<boolean>(false);
@@ -118,7 +125,7 @@ export default function Motivation() {
 			osc.start(now);
 			osc.stop(now + 0.38 + Math.random() * 0.22);
 			setTimeout(() => {
-				try { osc.disconnect(); bp.disconnect(); g.disconnect(); } catch {}
+				try { osc.disconnect(); bp.disconnect(); g.disconnect(); } catch { }
 			}, 1200);
 		} else {
 			// lower, softer double chirp
@@ -152,7 +159,7 @@ export default function Motivation() {
 					osc.start(t);
 					osc.stop(t + 0.35 + Math.random() * 0.15);
 					setTimeout(() => {
-						try { osc.disconnect(); bp.disconnect(); g.disconnect(); } catch {}
+						try { osc.disconnect(); bp.disconnect(); g.disconnect(); } catch { }
 					}, 1200);
 				}, i === 0 ? 0 : 150);
 			}
@@ -203,7 +210,7 @@ export default function Motivation() {
 		if (type === "ocean") {
 			// ensure previous amp LFO stopped
 			if (ampLfoRef.current) {
-				try { ampLfoRef.current.stop(); } catch {}
+				try { ampLfoRef.current.stop(); } catch { }
 				ampLfoRef.current.disconnect(); ampLfoRef.current = null;
 			}
 			if (ampLfoGainRef.current) {
@@ -264,7 +271,7 @@ export default function Motivation() {
 		}
 		// stop amp LFO if present
 		if (ampLfoRef.current) {
-			try { ampLfoRef.current.stop(); } catch {}
+			try { ampLfoRef.current.stop(); } catch { }
 			ampLfoRef.current.disconnect();
 			ampLfoRef.current = null;
 		}
@@ -277,12 +284,12 @@ export default function Motivation() {
 		if (noiseOscillatorRef.current) {
 			try {
 				noiseOscillatorRef.current.stop(now + 1.3);
-			} catch {}
+			} catch { }
 			noiseOscillatorRef.current = null;
 		}
 		// stop LFO
 		if (filterLfoRef.current) {
-			try { filterLfoRef.current.stop(); } catch {}
+			try { filterLfoRef.current.stop(); } catch { }
 			filterLfoRef.current.disconnect();
 			filterLfoRef.current = null;
 		}
@@ -298,7 +305,7 @@ export default function Motivation() {
 		// close context after a short delay
 		setTimeout(() => {
 			if (audioContextRef.current) {
-				try { audioContextRef.current.close(); } catch {}
+				try { audioContextRef.current.close(); } catch { }
 				audioContextRef.current = null;
 			}
 			noiseGainRef.current = null;
@@ -345,7 +352,7 @@ export default function Motivation() {
 		// if new is ocean, create amp LFO for gentle swells on the new gain
 		if (newType === "ocean") {
 			if (ampLfoRef.current) {
-				try { ampLfoRef.current.stop(); } catch {}
+				try { ampLfoRef.current.stop(); } catch { }
 				ampLfoRef.current.disconnect();
 				ampLfoRef.current = null;
 			}
@@ -381,7 +388,7 @@ export default function Motivation() {
 
 		// stop old source shortly after it goes silent
 		if (noiseOscillatorRef.current) {
-			try { noiseOscillatorRef.current.stop(audioContext.currentTime + 3.1); } catch {}
+			try { noiseOscillatorRef.current.stop(audioContext.currentTime + 3.1); } catch { }
 		}
 
 		// now track the new nodes so future controls affect them
@@ -393,7 +400,7 @@ export default function Motivation() {
 
 		// recreate gentle filter LFO if needed (forest/ocean/pink)
 		if (filterLfoRef.current) {
-			try { filterLfoRef.current.stop(); } catch {}
+			try { filterLfoRef.current.stop(); } catch { }
 			filterLfoRef.current.disconnect();
 			filterLfoRef.current = null;
 		}
@@ -549,11 +556,11 @@ export default function Motivation() {
 										borderRadius: "8px",
 										fontSize: "14px",
 										color: "#000000",
- 										fontWeight: "500",
- 										animation: "fadeIn 2s ease-in-out"
- 									}}>
- 										You are capable of amazing things! Keep pushing forward. 💪
- 									</div>
+										fontWeight: "500",
+										animation: "fadeIn 2s ease-in-out"
+									}}>
+										You are capable of amazing things! Keep pushing forward. 💪
+									</div>
 
 									<div className="flex gap-2 justify-center flex-wrap">
 										<button onClick={newQuote} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition transform hover:scale-105">
@@ -660,9 +667,8 @@ export default function Motivation() {
 											if (isNoiseActive) stopNoise();
 											else startNoise(noiseType);
 										}}
-										className={`px-6 py-3 rounded-lg text-white font-semibold shadow-lg hover:scale-105 transition transform duration-200 ${
-											isNoiseActive ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
-										}`}
+										className={`px-6 py-3 rounded-lg text-white font-semibold shadow-lg hover:scale-105 transition transform duration-200 ${isNoiseActive ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
+											}`}
 									>
 										{isNoiseActive ? "⏹ Stop" : "▶ Play"}
 									</button>
