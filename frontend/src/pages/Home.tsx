@@ -7,7 +7,6 @@
 //   )
 // }
 
-
 import { useEffect, useMemo, useState } from "react"
 
 type Task = {
@@ -53,8 +52,12 @@ function monthName(date: Date) {
 }
 
 export default function Home() {
-  const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()))
-  const [selectedDate, setSelectedDate] = useState<string>(() => formatDateDisplay(new Date()))
+  const [currentMonth, setCurrentMonth] = useState(() =>
+    startOfMonth(new Date()),
+  )
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    formatDateDisplay(new Date()),
+  )
   const [tasks, setTasks] = useState<Task[]>([])
   const [editing, setEditing] = useState<Task | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -72,28 +75,29 @@ export default function Home() {
   //   } catch { }
   // }, [tasks])
 
-   const API = "http://localhost:3000/api"
+  const API = "http://localhost:3000/api"
 
-
-   // Load tasks from backend on mount
-   useEffect(() => {
-     let cancelled = false
-     async function load() {
-       try {
-         const res = await fetch(`${API}/tasks`,{credentials: "include",})
-         if (!res.ok) throw new Error("Failed to fetch tasks")
-         const data = await res.json()
-         if (!cancelled) setTasks(data)
-       } catch (err) {
-         console.error("fetch tasks error:", err)
-       }
+  // Load tasks from backend on mount
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const res = await fetch(`${API}/tasks`, { credentials: "include" })
+        if (!res.ok) throw new Error("Failed to fetch tasks")
+        const data = await res.json()
+        if (!cancelled) setTasks(data)
+      } catch (err) {
+        console.error("fetch tasks error:", err)
+      }
     }
-     load()
-     return () => { cancelled = true }
-   }, [])
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
-   // API helpers
-   async function saveTaskAPI(task: Task) {
+  // API helpers
+  async function saveTaskAPI(task: Task) {
     try {
       if (task.id) {
         // UPDATE
@@ -121,25 +125,32 @@ export default function Home() {
     }
   }
 
-   async function removeTaskAPI(id: string) {
-     try {
-       const res = await fetch(`${API}/tasks/${id}`, { method: "DELETE", credentials: "include", })
-       if (res.status === 204 || res.ok) setTasks((prev) => prev.filter((p) => p.id !== id))
-     } catch (err) {
-       console.error("removeTaskAPI error:", err)
-     }
-   }
+  async function removeTaskAPI(id: string) {
+    try {
+      const res = await fetch(`${API}/tasks/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      })
+      if (res.status === 204 || res.ok)
+        setTasks((prev) => prev.filter((p) => p.id !== id))
+    } catch (err) {
+      console.error("removeTaskAPI error:", err)
+    }
+  }
 
-   async function toggleCompleteAPI(id: string) {
-     try {
-       const res = await fetch(`${API}/tasks/${id}/toggle`, { method: "PATCH", credentials: "include",})
-       if (!res.ok) throw new Error("Failed to toggle")
-       const updated = await res.json()
-       setTasks((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
-     } catch (err) {
-       console.error("toggleCompleteAPI error:", err)
-     }
-   }
+  async function toggleCompleteAPI(id: string) {
+    try {
+      const res = await fetch(`${API}/tasks/${id}/toggle`, {
+        method: "PATCH",
+        credentials: "include",
+      })
+      if (!res.ok) throw new Error("Failed to toggle")
+      const updated = await res.json()
+      setTasks((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+    } catch (err) {
+      console.error("toggleCompleteAPI error:", err)
+    }
+  }
 
   const daysGrid = useMemo(() => {
     const start = startOfMonth(currentMonth)
@@ -153,7 +164,9 @@ export default function Home() {
       cells.push(d)
     }
     for (let d = 1; d <= end.getDate(); d++) {
-      cells.push(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), d))
+      cells.push(
+        new Date(currentMonth.getFullYear(), currentMonth.getMonth(), d),
+      )
     }
     while (cells.length % 7 !== 0) {
       const last = cells[cells.length - 1]
@@ -182,7 +195,7 @@ export default function Home() {
       title: "",
       dueDate: dateDisplay,
       //dueDate: "",
-    })
+    } as any)
     setShowForm(true)
   }
 
@@ -224,13 +237,32 @@ export default function Home() {
         </div>
         <div className="flex gap-3 items-center">
           <div className="text-sm text-black/70">
-            <div>Total: <strong>{summary.total}</strong></div>
-            <div>Completed: <strong>{summary.completed}</strong></div>
+            <div>
+              Total: <strong>{summary.total}</strong>
+            </div>
+            <div>
+              Completed: <strong>{summary.completed}</strong>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1 bg-white/80 rounded shadow-sm" onClick={() => changeMonth(-1)}>Prev</button>
-            <button className="px-3 py-1 bg-white/80 rounded shadow-sm" onClick={() => setCurrentMonth(startOfMonth(new Date()))}>Today</button>
-            <button className="px-3 py-1 bg-white/80 rounded shadow-sm" onClick={() => changeMonth(1)}>Next</button>
+            <button
+              className="px-3 py-1 bg-white/80 rounded shadow-sm"
+              onClick={() => changeMonth(-1)}
+            >
+              Prev
+            </button>
+            <button
+              className="px-3 py-1 bg-white/80 rounded shadow-sm"
+              onClick={() => setCurrentMonth(startOfMonth(new Date()))}
+            >
+              Today
+            </button>
+            <button
+              className="px-3 py-1 bg-white/80 rounded shadow-sm"
+              onClick={() => changeMonth(1)}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
@@ -240,7 +272,9 @@ export default function Home() {
         <div className="col-span-1 md:col-span-2 bg-[rgb(188,248,238)] p-4 rounded text-black">
           <div className="grid grid-cols-7 gap-2 text-center mb-2 text-sm text-black/80">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} className="font-medium">{d}</div>
+              <div key={d} className="font-medium">
+                {d}
+              </div>
             ))}
           </div>
 
@@ -253,18 +287,24 @@ export default function Home() {
               return (
                 <button
                   key={display}
-                   onClick={() => {
-                     setSelectedDate(display)
-                     if (showForm) {
+                  onClick={() => {
+                    setSelectedDate(display)
+                    if (showForm) {
                       setEditing((prev) =>
-                        prev ? { ...prev, dueDate: display } : { title: "", dueDate: display }
+                        prev
+                          ? { ...prev, dueDate: display }
+                          : ({ title: "", dueDate: display } as any),
                       )
-                     }
-                  }} 
+                    }
+                  }}
                   className={
                     "p-2 h-20 text-left rounded border " +
-                    (inCurrentMonth ? "bg-white/5" : "bg-transparent text-black/30") +
-                    (selectedDate === display ? " ring-2 ring-indigo-300" : "") +
+                    (inCurrentMonth
+                      ? "bg-white/5"
+                      : "bg-transparent text-black/30") +
+                    (selectedDate === display
+                      ? " ring-2 ring-indigo-300"
+                      : "") +
                     (isToday ? " border-indigo-400" : "")
                   }
                 >
@@ -278,7 +318,13 @@ export default function Home() {
                   </div>
                   <div className="mt-2 text-xs space-y-1 overflow-hidden h-12">
                     {dateTasks.slice(0, 3).map((t) => (
-                      <div key={t.id} className={"truncate " + (t.completed ? "line-through text-black/40" : "")}>
+                      <div
+                        key={t.id}
+                        className={
+                          "truncate " +
+                          (t.completed ? "line-through text-black/40" : "")
+                        }
+                      >
                         {t.title || "(no title)"}
                       </div>
                     ))}
@@ -289,7 +335,10 @@ export default function Home() {
           </div>
 
           <div className="mt-3 flex justify-end">
-            <button className="px-3 py-1 bg-green-600 text-white rounded" onClick={() => onCreate(selectedDate)}>
+            <button
+              className="px-3 py-1 bg-green-600 text-white rounded"
+              onClick={() => onCreate(selectedDate)}
+            >
               Create task for {selectedDate}
             </button>
           </div>
@@ -299,31 +348,70 @@ export default function Home() {
         <div className="bg-[rgb(188,248,238)] p-4 rounded text-black">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold">Tasks — {selectedDate}</h3>
-            <button className="px-2 py-1 bg-[#0DB19B] rounded text-black ml-3" onClick={() => onCreate(selectedDate)}>+ New</button>
+            <button
+              className="px-2 py-1 bg-[#0DB19B] rounded text-black ml-3"
+              onClick={() => onCreate(selectedDate)}
+            >
+              + New
+            </button>
           </div>
-
 
           <div className="space-y-2">
             {tasksForDueDate(selectedDate).length === 0 && (
-              <div className="text-sm text-black/50">No tasks for this date.</div>
+              <div className="text-sm text-black/50">
+                No tasks for this date.
+              </div>
             )}
             {tasksForDueDate(selectedDate)
               .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
               .map((t) => (
-                <div key={t.id} className="p-2 bg-white/5 rounded flex justify-between items-start">
+                <div
+                  key={t.id}
+                  className="p-2 bg-white/5 rounded flex justify-between items-start"
+                >
                   <div>
                     <div className="flex items-center gap-2">
-                      <input type="checkbox" checked={!!t.completed} onChange={() => toggleComplete(t.id)} />
-                      <div className={"font-medium " + (t.completed ? "line-through text-black/40" : "")}>
+                      <input
+                        type="checkbox"
+                        checked={!!t.completed}
+                        onChange={() => toggleComplete(t.id)}
+                      />
+                      <div
+                        className={
+                          "font-medium " +
+                          (t.completed ? "line-through text-black/40" : "")
+                        }
+                      >
                         {t.title || "(no title)"}
                       </div>
                     </div>
-                    {t.notes && <div className="text-xs text-black/60 mt-1">{t.notes}</div>}
-                    {t.dueDate && <div className="text-xs text-black/50 mt-1">Due: {t.dueDate}</div>}
+                    {t.notes && (
+                      <div className="text-xs text-black/60 mt-1">
+                        {t.notes}
+                      </div>
+                    )}
+                    {t.dueDate && (
+                      <div className="text-xs text-black/50 mt-1">
+                        Due: {t.dueDate}
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col gap-1">
-                    <button className="text-sm px-2 py-1 bg-white/20 rounded" onClick={() => { setEditing(t); setShowForm(true); }}>Edit</button>
-                    <button className="text-sm px-2 py-1 bg-red-600 text-white rounded" onClick={() => removeTask(t.id)}>Delete</button>
+                    <button
+                      className="text-sm px-2 py-1 bg-white/20 rounded"
+                      onClick={() => {
+                        setEditing(t)
+                        setShowForm(true)
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="text-sm px-2 py-1 bg-red-600 text-white rounded"
+                      onClick={() => removeTask(t.id)}
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               ))}
@@ -334,7 +422,10 @@ export default function Home() {
               <TaskForm
                 initial={editing ?? { title: "", dueDate: selectedDate }}
                 selectedDate={selectedDate}
-                onCancel={() => { setShowForm(false); setEditing(null); }}
+                onCancel={() => {
+                  setShowForm(false)
+                  setEditing(null)
+                }}
                 onSave={(t) => saveTask(t)}
               />
             </div>
@@ -372,18 +463,24 @@ function TaskForm({
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        onSave({ ...(initial.id ? { id: initial.id } : {}), 
-              title: title.trim(), 
-              notes: notes.trim(), 
-              dueDate, 
-              dueTime: time, 
-              completed })
+        onSave({
+          ...(initial.id ? { id: initial.id } : {}),
+          title: title.trim(),
+          notes: notes.trim(),
+          dueDate,
+          dueTime: time,
+          completed,
+        } as any)
       }}
       className="space-y-2"
     >
       <div>
         <label className="text-sm block">Title</label>
-        <input className="w-full rounded px-2 py-1 border border-black/45" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input
+          className="w-full rounded px-2 py-1 border border-black/45"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
       </div>
       {/* <div>
         <label className="text-sm block">Created Date</label>
@@ -404,21 +501,46 @@ function TaskForm({
         </div>
         <div>
           <label className="text-sm block">Time</label>
-          <input type="time" className="w-full rounded px-2 py-1" value={time} onChange={(e) => setTime(e.target.value)} />
+          <input
+            type="time"
+            className="w-full rounded px-2 py-1"
+            value={time}
+            onChange={(e) => setTime(e.target.value)}
+          />
         </div>
       </div>
       <div>
         <label className="text-sm block">Notes</label>
-        <textarea className="w-full rounded px-2 py-1 border border-black/45" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <textarea
+          className="w-full rounded px-2 py-1 border border-black/45"
+          rows={3}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
       </div>
       <div className="flex items-center gap-3">
         <label className="flex items-center gap-2">
-          <input type="checkbox" checked={completed} onChange={(e) => setCompleted(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={completed}
+            onChange={(e) => setCompleted(e.target.checked)}
+          />
           <span className="text-sm">Completed</span>
         </label>
         <div className="flex-1 text-right">
-          <button type="button" className="px-3 py-1 mr-2 bg-white/20 rounded" onClick={onCancel}>Cancel</button>
-          <button type="submit" className="px-3 py-1 bg-green-600 text-white rounded">Save</button>
+          <button
+            type="button"
+            className="px-3 py-1 mr-2 bg-white/20 rounded"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-3 py-1 bg-green-600 text-white rounded"
+          >
+            Save
+          </button>
         </div>
       </div>
     </form>

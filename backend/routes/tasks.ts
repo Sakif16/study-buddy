@@ -1,12 +1,16 @@
 import express from "express"
 import { z } from "zod"
 import { db } from "../db.js"
-import { Prisma } from "../generated/prisma/client.js"
+import type { Prisma } from "../generated/prisma/client.js"
 
 const router = express.Router()
 
 // Middleware to ensure user is authenticated
-const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const requireAuth = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) => {
   if (!req.session?.user) {
     return res.status(401).json({ error: "unauthorized" })
   }
@@ -26,6 +30,7 @@ const TaskSchema = z.object({
 // GET /api/tasks
 router.get("/", async (req, res) => {
   try {
+    if (!req.session.user) throw new Error("not authenticated")
     const userId = req.session!.user.id
     const tasks = await db.task.findMany({
       where: { userId },
@@ -41,20 +46,21 @@ router.get("/", async (req, res) => {
 // POST /api/tasks
 router.post("/", async (req, res) => {
   try {
+    if (!req.session.user) throw new Error("not authenticated")
     const payload = TaskSchema.parse(req.body)
     const userId = req.session!.user.id
     const created = await db.task.create({
       data: {
         ...payload,
         userId,
-      } as Prisma.TaskCreateInput,
+      } as any,
     })
     res.status(201).json(created)
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({
         error: "invalid payload",
-        details: err.errors,
+        details: z.flattenError(err),
       })
     }
     console.error("[tasks] create error", err)
@@ -65,6 +71,7 @@ router.post("/", async (req, res) => {
 // PUT /api/tasks/:id
 router.put("/:id", async (req, res) => {
   try {
+    if (!req.session.user) throw new Error("not authenticated")
     const userId = req.session!.user.id
     const task = await db.task.findFirst({
       where: { id: req.params.id, userId },
@@ -86,6 +93,7 @@ router.put("/:id", async (req, res) => {
 // PATCH /api/tasks/:id/toggle
 router.patch("/:id/toggle", async (req, res) => {
   try {
+    if (!req.session.user) throw new Error("not authenticated")
     const userId = req.session!.user.id
     const task = await db.task.findFirst({
       where: { id: req.params.id, userId },
@@ -106,9 +114,10 @@ router.patch("/:id/toggle", async (req, res) => {
 // DELETE /api/tasks/:id
 router.delete("/:id", async (req, res) => {
   try {
+    if (!req.session.user) throw new Error("not authenticated")
     const userId = req.session!.user.id
     const task = await db.task.findFirst({
-      where: { id: req.params.id, userId },  // <-- check ownership
+      where: { id: req.params.id, userId }, // <-- check ownership
     })
     if (!task) return res.status(404).json({ error: "not found" })
 

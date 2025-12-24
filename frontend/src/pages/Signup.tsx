@@ -47,7 +47,7 @@ export default function Signup() {
     if (!parsed.success) {
       const issues: Record<string, string> = {}
       parsed.error.issues.forEach((i) => {
-        if (i.path?.length) issues[i.path[0].toString()] = i.message
+        if (i.path?.length) issues[i.path[0]!.toString()] = i.message
       })
       setFieldErrors(issues)
       return
