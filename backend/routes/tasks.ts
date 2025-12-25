@@ -1,12 +1,16 @@
 import express from "express"
 import { z } from "zod"
 import { db } from "../db.js"
-/* eslint-disable */
+import type { Prisma } from "../generated/prisma/client.js"
 
 const router = express.Router()
 
 // Middleware to ensure user is authenticated
-const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const requireAuth = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) => {
   if (!req.session?.user) {
     return res.status(401).json({ error: "unauthorized" })
   }
@@ -26,9 +30,8 @@ const TaskSchema = z.object({
 // GET /api/tasks
 router.get("/", async (req, res) => {
   try {
-    const user = req.session?.user
-    if (!user) return res.status(401).json({ error: "unauthorized" })
-    const userId = user.id
+    if (!req.session.user) throw new Error("not authenticated")
+    const userId = req.session!.user.id
     const tasks = await db.task.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -43,26 +46,21 @@ router.get("/", async (req, res) => {
 // POST /api/tasks
 router.post("/", async (req, res) => {
   try {
+    if (!req.session.user) throw new Error("not authenticated")
     const payload = TaskSchema.parse(req.body)
-    const user = req.session?.user
-    if (!user) return res.status(401).json({ error: "unauthorized" })
-    const userId = user.id
-    const createData = {
-      userId,
-      title: payload.title ?? null,
-      notes: payload.notes ?? null,
-      dueDate: payload.dueDate ?? null,
-      dueTime: payload.dueTime ?? null,
-      completed: typeof payload.completed === "boolean" ? payload.completed : false,
-    }
-    const created = await db.task.create({ data: createData })
-    // Note: completedTasks syncing is handled on login/streak fetch to avoid schema/type mismatch here.
+    const userId = req.session!.user.id
+    const created = await db.task.create({
+      data: {
+        ...payload,
+        userId,
+      } as any,
+    })
     res.status(201).json(created)
   } catch (err) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({
         error: "invalid payload",
-        details: err.issues,
+        details: z.flattenError(err),
       })
     }
     console.error("[tasks] create error", err)
@@ -73,20 +71,29 @@ router.post("/", async (req, res) => {
 // PUT /api/tasks/:id
 router.put("/:id", async (req, res) => {
   try {
-    const user = req.session?.user
-    if (!user) return res.status(401).json({ error: "unauthorized" })
-    const userId = user.id
-    const task = await db.task.findFirst({ where: { id: req.params.id, userId } })
+    if (!req.session.user) throw new Error("not authenticated")
+    const userId = req.session!.user.id
+    const task = await db.task.findFirst({
+      where: { id: req.params.id, userId },
+    })
     if (!task) return res.status(404).json({ error: "not found" })
 
     const payload = TaskSchema.partial().parse(req.body)
     const updateData: Record<string, unknown> = {}
-    if (Object.hasOwn(payload, "title")) updateData.title = payload.title ?? null
-    if (Object.hasOwn(payload, "notes")) updateData.notes = payload.notes ?? null
-    if (Object.hasOwn(payload, "dueDate")) updateData.dueDate = payload.dueDate ?? null
-    if (Object.hasOwn(payload, "dueTime")) updateData.dueTime = payload.dueTime ?? null
-    if (Object.hasOwn(payload, "completed")) updateData.completed = payload.completed
-    const updated = await db.task.update({ where: { id: req.params.id }, data: updateData })
+    if (Object.hasOwn(payload, "title"))
+      updateData.title = payload.title ?? null
+    if (Object.hasOwn(payload, "notes"))
+      updateData.notes = payload.notes ?? null
+    if (Object.hasOwn(payload, "dueDate"))
+      updateData.dueDate = payload.dueDate ?? null
+    if (Object.hasOwn(payload, "dueTime"))
+      updateData.dueTime = payload.dueTime ?? null
+    if (Object.hasOwn(payload, "completed"))
+      updateData.completed = payload.completed
+    const updated = await db.task.update({
+      where: { id: req.params.id },
+      data: updateData,
+    })
     // Note: completedTasks syncing is handled on login/streak fetch to avoid schema/type mismatch here.
     res.json(updated)
   } catch (err) {
@@ -98,10 +105,11 @@ router.put("/:id", async (req, res) => {
 // PATCH /api/tasks/:id/toggle
 router.patch("/:id/toggle", async (req, res) => {
   try {
-    const user = req.session?.user
-    if (!user) return res.status(401).json({ error: "unauthorized" })
-    const userId = user.id
-    const task = await db.task.findFirst({ where: { id: req.params.id, userId } })
+    if (!req.session.user) throw new Error("not authenticated")
+    const userId = req.session!.user.id
+    const task = await db.task.findFirst({
+      where: { id: req.params.id, userId },
+    })
     if (!task) return res.status(404).json({ error: "not found" })
 
     const updated = await db.task.update({
@@ -119,10 +127,11 @@ router.patch("/:id/toggle", async (req, res) => {
 // DELETE /api/tasks/:id
 router.delete("/:id", async (req, res) => {
   try {
-    const user = req.session?.user
-    if (!user) return res.status(401).json({ error: "unauthorized" })
-    const userId = user.id
-    const task = await db.task.findFirst({ where: { id: req.params.id, userId } })
+    if (!req.session.user) throw new Error("not authenticated")
+    const userId = req.session!.user.id
+    const task = await db.task.findFirst({
+      where: { id: req.params.id, userId }, // <-- check ownership
+    })
     if (!task) return res.status(404).json({ error: "not found" })
 
     await db.task.delete({ where: { id: task.id } })

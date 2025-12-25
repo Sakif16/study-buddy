@@ -47,7 +47,8 @@ export default function Signup() {
     if (!parsed.success) {
       const issues: Record<string, string> = {}
       parsed.error.issues.forEach((i) => {
-        const key = Array.isArray(i.path) && i.path.length ? String(i.path[0]) : ""
+        const key =
+          Array.isArray(i.path) && i.path.length ? String(i.path[0]) : ""
         if (key) issues[key] = i.message
       })
       setFieldErrors(issues)
@@ -88,7 +89,8 @@ export default function Signup() {
                     currentStreak: stats?.currentStreak ?? 0,
                     totalHours,
                     totalSeconds,
-                    completedTasks: typeof completed === "number" ? completed : undefined,
+                    completedTasks:
+                      typeof completed === "number" ? completed : undefined,
                   },
                 }),
               )
