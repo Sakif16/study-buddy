@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { db, LoginSchema, RegisterSchema } from "../db.js"
 import z from "zod"
 import bcrypt from "bcryptjs"
@@ -123,6 +124,68 @@ router.post("/login", async (req, res) => {
 
     // session code here
     req.session.user = user as unknown as user
+    // update login-based streak (only once per day)
+    try {
+      const todayStr = new Date().toISOString().slice(0, 10)
+      const yesterday = new Date()
+      yesterday.setDate(yesterday.getDate() - 1)
+      const yesterdayStr = yesterday.toISOString().slice(0, 10)
+
+      const stats = await db.userStats.findUnique({ where: { userId: user.id } })
+
+      if (!stats) {
+        await db.userStats.create({
+          data: {
+            userId: user.id,
+            currentStreak: 1,
+            bestStreak: 1,
+            lastActive: new Date(),
+          },
+        })
+      } else {
+        const last = stats.lastActive ? stats.lastActive.toISOString().slice(0, 10) : null
+        if (last !== todayStr) {
+          const newStreak = last === yesterdayStr ? (stats.currentStreak ?? 0) + 1 : 1
+          await db.userStats.update({
+            where: { userId: user.id },
+            data: {
+              currentStreak: newStreak,
+              lastActive: new Date(),
+              bestStreak: Math.max(stats.bestStreak ?? 0, newStreak),
+            },
+          })
+        }
+      }
+    } catch (e) {
+      console.error("failed to update userStats on login", e)
+    }
+
+    // fetch current stats to return along with the user so frontend shows updated streak immediately
+    let statsResp = null
+    let completedTasksCount = 0
+    try {
+      const stats = await db.userStats.findUnique({ where: { userId: user.id } })
+      if (stats) {
+        const stored = stats as unknown as { completedTasks?: number }
+        statsResp = {
+          currentStreak: stats.currentStreak ?? 0,
+          bestStreak: stats.bestStreak ?? 0,
+          completedTasks: stored.completedTasks ?? 0,
+          totalPomodoroMinutes: stats.totalPomodoroMinutes ?? 0,
+          lastActive: stats.lastActive ?? null,
+        }
+      }
+      // compute authoritative completed tasks count and sync stored value if it differs
+      try {
+        const actualCount = await db.task.count({ where: { userId: user.id, completed: true } })
+        completedTasksCount = actualCount
+        // do not write back here; streak endpoint will return authoritative count and can sync stored value
+      } catch (e) {
+        console.error("failed to count completed tasks for login response", e)
+      }
+    } catch (e) {
+      console.error("failed to read userStats for login response", e)
+    }
 
     const safeUser = {
       id: user.id,
@@ -130,7 +193,7 @@ router.post("/login", async (req, res) => {
       email: user.email,
       name: user.name ?? null,
     }
-    return res.json({ success: true, user: safeUser })
+    return res.json({ success: true, user: safeUser, stats: statsResp, completedTasks: completedTasksCount })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.json({
@@ -157,6 +220,21 @@ router.post("/register", async (req, res) => {
     const user = await db.user.create({ data: createData })
     console.log("[register] created user id:", user.id)
 
+    // initialize UserStats for the new user
+    try {
+      await db.userStats.create({
+        data: {
+          userId: user.id,
+          currentStreak: 0,
+          bestStreak: 0,
+          lastActive: null,
+          totalPomodoroMinutes: 0,
+        },
+      })
+    } catch (e) {
+      console.error("failed to create userStats for new user", e)
+    }
+
     // session code here (store a safe user payload without password)
     const safeUser = {
       id: user.id,
@@ -166,7 +244,32 @@ router.post("/register", async (req, res) => {
     }
     // store full user if you prefer; cast to any to satisfy SessionData typing
     req.session.user = user as unknown as user
-    return res.json({ success: true, user: safeUser })
+
+    // also return initial stats if available
+    let statsResp = null
+    let completedTasksCount = 0
+    try {
+      const stats = await db.userStats.findUnique({ where: { userId: user.id } })
+      if (stats) {
+        const stored = stats as unknown as { completedTasks?: number }
+        statsResp = {
+          currentStreak: stats.currentStreak ?? 0,
+          bestStreak: stats.bestStreak ?? 0,
+          completedTasks: stored.completedTasks ?? 0,
+          totalPomodoroMinutes: stats.totalPomodoroMinutes ?? 0,
+          lastActive: stats.lastActive ?? null,
+        }
+      }
+      try {
+        completedTasksCount = await db.task.count({ where: { userId: user.id, completed: true } })
+      } catch (e) {
+        console.error("failed to count completed tasks for register response", e)
+      }
+    } catch (e) {
+      console.error("failed to read userStats for register response", e)
+    }
+
+    return res.json({ success: true, user: safeUser, stats: statsResp, completedTasks: completedTasksCount })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.json({

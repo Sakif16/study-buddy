@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from "react"
 
 type Task = {
-  id: string
+  id?: string
   title: string
   notes?: string
   //createdDate: string // dd/mm/yyyy
@@ -83,7 +83,15 @@ export default function Home() {
          const res = await fetch(`${API}/tasks`,{credentials: "include",})
          if (!res.ok) throw new Error("Failed to fetch tasks")
          const data = await res.json()
-         if (!cancelled) setTasks(data)
+         if (!cancelled) {
+           setTasks(data)
+           // persist and broadcast completed count
+           try {
+             const completed = Array.isArray(data) ? data.filter((t) => t.completed === true).length : 0
+             localStorage.setItem("study-buddy.completedCount.v1", String(completed))
+             window.dispatchEvent(new CustomEvent("tasks:updated", { detail: { completed } }))
+           } catch {}
+         }
        } catch (err) {
          console.error("fetch tasks error:", err)
        }
@@ -104,7 +112,15 @@ export default function Home() {
           credentials: "include",
         })
         const updated = await res.json()
-        setTasks((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+        setTasks((prev) => {
+          const next = prev.map((p) => (p.id === updated.id ? updated : p))
+          try {
+            const completed = next.filter((t) => t.completed === true).length
+            localStorage.setItem("study-buddy.completedCount.v1", String(completed))
+            window.dispatchEvent(new CustomEvent("tasks:updated", { detail: { completed } }))
+          } catch {}
+          return next
+        })
       } else {
         // CREATE
         const res = await fetch(`${API}/tasks`, {
@@ -114,7 +130,15 @@ export default function Home() {
           credentials: "include",
         })
         const created = await res.json()
-        setTasks((prev) => [...prev, created])
+        setTasks((prev) => {
+          const next = [...prev, created]
+          try {
+            const completed = next.filter((t) => t.completed === true).length
+            localStorage.setItem("study-buddy.completedCount.v1", String(completed))
+            window.dispatchEvent(new CustomEvent("tasks:updated", { detail: { completed } }))
+          } catch {}
+          return next
+        })
       }
     } catch (err) {
       console.error("saveTaskAPI error:", err)
@@ -124,10 +148,18 @@ export default function Home() {
    async function removeTaskAPI(id: string) {
      try {
        const res = await fetch(`${API}/tasks/${id}`, { method: "DELETE", credentials: "include", })
-       if (res.status === 204 || res.ok) setTasks((prev) => prev.filter((p) => p.id !== id))
-     } catch (err) {
-       console.error("removeTaskAPI error:", err)
-     }
+       if (res.status === 204 || res.ok) setTasks((prev) => {
+         const next = prev.filter((p) => p.id !== id)
+         try {
+           const completed = next.filter((t) => t.completed === true).length
+           localStorage.setItem("study-buddy.completedCount.v1", String(completed))
+           window.dispatchEvent(new CustomEvent("tasks:updated", { detail: { completed } }))
+         } catch {}
+         return next
+       })
+    } catch (err) {
+      console.error("removeTaskAPI error:", err)
+    }
    }
 
    async function toggleCompleteAPI(id: string) {
@@ -135,10 +167,18 @@ export default function Home() {
        const res = await fetch(`${API}/tasks/${id}/toggle`, { method: "PATCH", credentials: "include",})
        if (!res.ok) throw new Error("Failed to toggle")
        const updated = await res.json()
-       setTasks((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
-     } catch (err) {
-       console.error("toggleCompleteAPI error:", err)
-     }
+       setTasks((prev) => {
+         const next = prev.map((p) => (p.id === updated.id ? updated : p))
+         try {
+           const completed = next.filter((t) => t.completed === true).length
+           localStorage.setItem("study-buddy.completedCount.v1", String(completed))
+           window.dispatchEvent(new CustomEvent("tasks:updated", { detail: { completed } }))
+         } catch {}
+         return next
+       })
+    } catch (err) {
+      console.error("toggleCompleteAPI error:", err)
+    }
    }
 
   const daysGrid = useMemo(() => {
@@ -192,12 +232,14 @@ export default function Home() {
     setEditing(null)
   }
 
-  function removeTask(id: string) {
+  function removeTask(id?: string) {
+    if (!id) return
     if (!confirm("Delete this task?")) return
     removeTaskAPI(id)
   }
 
-  function toggleComplete(id: string) {
+  function toggleComplete(id?: string) {
+    if (!id) return
     toggleCompleteAPI(id)
   }
 

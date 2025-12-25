@@ -15,23 +15,24 @@ datasource db {
 }
 
 model user {
-  id          String       @id @default(auto()) @map("_id") @db.ObjectId
-  username    String       @unique
-  email       String       @unique
-  password    String
-  name        String?
-  createdAt   DateTime     @default(now())
-  tasks       Task[]
-  assignments assignment[]
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  username         String            @unique
+  email            String            @unique
+  password         String
+  name             String?
+  createdAt        DateTime          @default(now())
+  tasks            Task[]
+  assignments      assignment[]
   pomodoroSessions PomodoroSession[]
-  notes       Note[]
-  categories   Category[]
+  notes            Note[]
+  categories       Category[]
 
-  ownedGroups     Group[]        @relation("GroupOwner")
+  ownedGroups     Group[]       @relation("GroupOwner")
   groupMembers    GroupMember[]
-  sentInvites     Invitation[]   @relation("InvitationFrom")
-  receivedInvites Invitation[]   @relation("InvitationTo")
+  sentInvites     Invitation[]  @relation("InvitationFrom")
+  receivedInvites Invitation[]  @relation("InvitationTo")
   messages        Message[]
+  stats           UserStats?
 }
 
 model assignment {
@@ -59,15 +60,15 @@ model Task {
 }
 
 model Note {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  title     String
-  content   String?
-  category  String   @default("1")
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  title      String
+  content    String?
+  category   String   @default("1")
   isFavorite Boolean  @default(false)
-  userId    String   @db.ObjectId
-  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  userId     String   @db.ObjectId
+  user       user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model Category {
@@ -80,24 +81,24 @@ model Category {
 }
 
 model Group {
-  id        String       @id @default(auto()) @map("_id") @db.ObjectId
-  name      String
-  ownerId   String       @db.ObjectId
-  owner     user         @relation("GroupOwner", fields: [ownerId], references: [id])
-  members   GroupMember[]
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  ownerId     String        @db.ObjectId
+  owner       user          @relation("GroupOwner", fields: [ownerId], references: [id])
+  members     GroupMember[]
   invitations Invitation[]
-  messages  Message[]
-  createdAt DateTime     @default(now())
+  messages    Message[]
+  createdAt   DateTime      @default(now())
 }
 
 model GroupMember {
-  id       String @id @default(auto()) @map("_id") @db.ObjectId
-  groupId  String @db.ObjectId
-  userId   String @db.ObjectId
-  role     String @default("member")
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  groupId String @db.ObjectId
+  userId  String @db.ObjectId
+  role    String @default("member")
 
-  group    Group  @relation(fields: [groupId], references: [id])
-  user     user   @relation(fields: [userId], references: [id])
+  group Group @relation(fields: [groupId], references: [id])
+  user  user  @relation(fields: [userId], references: [id])
 
   @@unique([groupId, userId])
 }
@@ -109,16 +110,16 @@ enum InvitationStatus {
 }
 
 model Invitation {
-  id        String            @id @default(auto()) @map("_id") @db.ObjectId
-  groupId   String            @db.ObjectId
-  fromId    String            @db.ObjectId
-  toId      String            @db.ObjectId
-  status    InvitationStatus  @default(PENDING)
-  createdAt DateTime          @default(now())
+  id        String           @id @default(auto()) @map("_id") @db.ObjectId
+  groupId   String           @db.ObjectId
+  fromId    String           @db.ObjectId
+  toId      String           @db.ObjectId
+  status    InvitationStatus @default(PENDING)
+  createdAt DateTime         @default(now())
 
-  group     Group             @relation(fields: [groupId], references: [id])
-  from      user              @relation("InvitationFrom", fields: [fromId], references: [id])
-  to        user              @relation("InvitationTo", fields: [toId], references: [id])
+  group Group @relation(fields: [groupId], references: [id])
+  from  user  @relation("InvitationFrom", fields: [fromId], references: [id])
+  to    user  @relation("InvitationTo", fields: [toId], references: [id])
 }
 
 model Message {
@@ -128,24 +129,37 @@ model Message {
   content   String
   createdAt DateTime @default(now())
 
-  group     Group    @relation(fields: [groupId], references: [id])
-  sender    user     @relation(fields: [senderId], references: [id])
+  group  Group @relation(fields: [groupId], references: [id])
+  sender user  @relation(fields: [senderId], references: [id])
 }
 
 model Quote {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   text      String
-  author    String? 
+  author    String?
   createdAt DateTime @default(now())
 }
 
 model PomodoroSession {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId    String   @db.ObjectId
-  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String    @db.ObjectId
+  user      user      @relation(fields: [userId], references: [id], onDelete: Cascade)
   startAt   DateTime
   endAt     DateTime?
-  duration  Int?     // duration in seconds
-  type      String   @default("work") // "work" or "break"
-  createdAt DateTime @default(now())
+  duration  Int? // duration in seconds
+  type      String    @default("work") // "work" or "break"
+  createdAt DateTime  @default(now())
+}
+
+model UserStats {
+  id                   String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId               String    @unique @db.ObjectId
+  user                 user      @relation(fields: [userId], references: [id])
+  currentStreak        Int       @default(0)
+  bestStreak           Int       @default(0)
+  completedTasks       Int       @default(0)
+  lastActive           DateTime?
+  totalPomodoroMinutes Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }

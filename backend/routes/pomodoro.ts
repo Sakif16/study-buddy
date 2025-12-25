@@ -3,6 +3,43 @@ import { z } from "zod"
 import { db } from "../db.js"
 import type { Prisma } from "../generated/prisma/client.js"
 
+// Module-level types used across handlers
+type PomodoroRecord = {
+  id: string
+  startAt: Date | string
+  endAt?: Date | null
+  duration?: number | null
+  type?: string | null
+  createdAt?: Date
+}
+
+type TotalsDebugRow = {
+  id: string
+  type?: string | null
+  startAt: Date | string
+  endAt?: Date | null
+  durationRecorded?: number | null
+  counted?: boolean
+  contributionSeconds?: number
+  reason?: string
+}
+
+type DiagnosticsRow = {
+  id: string
+  type?: string | null
+  startAt: Date | string
+  endAt?: Date | null
+  durationRecorded?: number | null
+  computedDuration?: number
+  futureStart?: boolean
+  tooLong?: boolean
+  runningTooLong?: boolean
+  createdAt?: Date | null
+}
+
+type FixChange = { duration?: number; endAt?: Date; startAt?: Date }
+type Fix = { id: string; reason: string; before: FixChange; after: FixChange }
+
 const router = express.Router()
 
 const requireAuth = (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -70,6 +107,31 @@ router.post("/stop", async (req, res) => {
       data: { endAt, duration: durationSeconds } as Prisma.PomodoroSessionUncheckedUpdateInput,
     })
 
+    // Update per-user aggregated minutes in UserStats (only count work sessions)
+    try {
+      const prevMinutes = Math.floor((session.duration ?? 0) / 60)
+      const newMinutes = Math.floor((durationSeconds ?? 0) / 60)
+      const deltaMinutes = Math.max(0, newMinutes - prevMinutes)
+
+      if (deltaMinutes > 0 && (updated.type ?? "work") === "work") {
+        await db.userStats.upsert({
+          where: { userId },
+          create: {
+            userId,
+            currentStreak: 0,
+            bestStreak: 0,
+            lastActive: null,
+            totalPomodoroMinutes: deltaMinutes,
+          },
+          update: {
+            totalPomodoroMinutes: { increment: deltaMinutes },
+          },
+        })
+      }
+    } catch (e) {
+      console.error("failed to update UserStats minutes", e)
+    }
+
     res.json(updated)
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -104,7 +166,9 @@ router.get("/totals", async (req, res) => {
     const MAX_SESSION_SECONDS = 6 * 3600
     let totalSeconds = 0
 
-    const normalizeDuration = (s: any) => {
+    
+
+    const normalizeDuration = (s: PomodoroRecord) => {
       const raw = Math.max(0, s.duration ?? 0)
       if (raw <= MAX_SESSION_SECONDS) return raw
       // If value looks like milliseconds (raw/1000 fits), convert to seconds
@@ -114,7 +178,7 @@ router.get("/totals", async (req, res) => {
       return MAX_SESSION_SECONDS
     }
 
-    for (const s of sessions) {
+    for (const s of sessions as PomodoroRecord[]) {
       if (s.type && s.type !== "work") continue
       const dur = normalizeDuration(s)
       totalSeconds += dur
@@ -140,15 +204,15 @@ router.get("/totals/debug", async (req, res) => {
     const MAX_SESSION_SECONDS = 6 * 3600
     const now = new Date()
 
-    const results: Array<any> = []
+    const totalsDebugResults: TotalsDebugRow[] = []
     let totalSeconds = 0
 
-    for (const s of sessions) {
-      const row: any = { id: s.id, type: s.type, startAt: s.startAt, endAt: s.endAt, durationRecorded: s.duration }
+    for (const s of sessions as PomodoroRecord[]) {
+      const row: TotalsDebugRow = { id: s.id, type: s.type ?? null, startAt: s.startAt, endAt: s.endAt ?? null, durationRecorded: s.duration ?? null }
       if (s.type && s.type !== "work") {
         row.counted = false
         row.reason = "non-work"
-        results.push(row)
+        totalsDebugResults.push(row)
         continue
       }
 
@@ -156,7 +220,7 @@ router.get("/totals/debug", async (req, res) => {
       if (start.getTime() > now.getTime() + 5 * 60 * 1000) {
         row.counted = false
         row.reason = "future-start"
-        results.push(row)
+        totalsDebugResults.push(row)
         continue
       }
 
@@ -169,7 +233,7 @@ router.get("/totals/debug", async (req, res) => {
         if (end.getTime() <= start.getTime()) {
           row.counted = false
           row.reason = "end-before-start"
-          results.push(row)
+          totalsDebugResults.push(row)
           continue
         }
         contribution = Math.floor((end.getTime() - start.getTime()) / 1000)
@@ -216,12 +280,12 @@ router.get("/totals/debug", async (req, res) => {
       row.contributionSeconds = contribution
       row.reason = reason
       if (row.counted) totalSeconds += contribution
-      results.push(row)
+      totalsDebugResults.push(row)
     }
 
     const totalMinutes = Math.floor(totalSeconds / 60)
     const totalHours = Math.floor(totalMinutes / 60)
-    res.json({ totalSeconds, totalMinutes, totalHours, sessions: results })
+    res.json({ totalSeconds, totalMinutes, totalHours, sessions: totalsDebugResults })
   } catch (err) {
     console.error("[pomodoro] totals debug error", err)
     res.status(500).json({ error: "failed to compute totals debug" })
@@ -255,7 +319,7 @@ router.get("/stats", async (req, res) => {
     // For accuracy, split each session's duration across UTC day boundaries so time is counted
     // toward the correct calendar day(s). Also ignore non-work sessions and sessions with
     // suspicious future start times.
-    const normalizeDurationForStats = (s: any, nowDate: Date) => {
+    const normalizeDurationForStats = (s: PomodoroRecord, nowDate: Date) => {
       // Returns { start: Date, end: Date } representing the effective start/end (capped and converted)
       const startRaw = new Date(s.startAt)
       // ignore sessions that start far in the future (>5 minutes ahead)
@@ -403,7 +467,7 @@ router.get("/diagnostics", async (req, res) => {
 
     const sessions = await db.pomodoroSession.findMany({ where: { userId }, orderBy: { startAt: "asc" } })
 
-    const results = sessions.map((s) => {
+    const diagnosticsResults: DiagnosticsRow[] = (sessions as PomodoroRecord[]).map((s) => {
       const start = new Date(s.startAt)
       const durationRecorded = s.duration != null ? s.duration : null
       const computedDuration = durationRecorded != null ? durationRecorded : Math.max(0, Math.floor((now.getTime() - start.getTime()) / 1000))
@@ -412,21 +476,21 @@ router.get("/diagnostics", async (req, res) => {
       const runningTooLong = s.duration == null && computedDuration > 24 * 3600 // running more than 24h
       return {
         id: s.id,
-        type: s.type,
+        type: s.type ?? null,
         startAt: s.startAt,
-        endAt: s.endAt,
+        endAt: s.endAt ?? null,
         durationRecorded,
         computedDuration,
         futureStart,
         tooLong,
         runningTooLong,
-        createdAt: s.createdAt,
+        createdAt: s.createdAt ?? null,
       }
     })
 
     // Filter only suspicious ones but include a sample of normal sessions for context
-    const suspicious = results.filter((r) => r.futureStart || r.tooLong || r.runningTooLong)
-    const sample = results.slice(-20)
+    const suspicious = diagnosticsResults.filter((r) => r.futureStart || r.tooLong || r.runningTooLong)
+    const sample = diagnosticsResults.slice(-20)
 
     res.json({ suspicious, sampleCount: sample.length, sample })
   } catch (err) {
@@ -447,10 +511,10 @@ router.post("/cleanup", async (req, res) => {
 
     const sessions = await db.pomodoroSession.findMany({ where: { userId }, orderBy: { startAt: "asc" } })
 
-    const fixes: Array<{ id: string; reason: string; before: any; after: any }> = []
+    const fixes: Fix[] = []
 
     for (const s of sessions) {
-      let updated: any = null
+      let updated: FixChange | null = null
       const start = new Date(s.startAt)
       const durationRecorded = s.duration
 
@@ -492,7 +556,7 @@ router.post("/cleanup", async (req, res) => {
     }
 
     const apply = String(req.query.apply || "false").toLowerCase() === "true"
-    const applied: Array<any> = []
+    const applied: Array<{ id: string; updated: unknown }> = []
     if (apply && fixes.length > 0) {
       for (const f of fixes) {
         const upd = await db.pomodoroSession.update({ where: { id: f.id }, data: f.after as Prisma.PomodoroSessionUncheckedUpdateInput })

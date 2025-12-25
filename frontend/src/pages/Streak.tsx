@@ -7,8 +7,9 @@
 //   )
 // }
 
-import { useMemo, useEffect, useState } from "react"
-import { getPomodoroStats, getPomodoroTotals } from "../PomodoroApi"
+import { useMemo, useEffect, useState, useContext } from "react"
+import { getPomodoroTotals, getStreak, getTasks } from "../PomodoroApi"
+import AuthApi from "../AuthApi"
 
 type Task = {
   id: string
@@ -46,6 +47,30 @@ function toISO(dateStr?: string): string {
 export default function Streak() {
   const [backendTotalHours, setBackendTotalHours] = useState<number | null>(null)
   const [backendCurrentStreak, setBackendCurrentStreak] = useState<number | null>(null)
+  const [backendTasksCompleted, setBackendTasksCompleted] = useState<number | null>(null)
+  const apiAuth = useContext(AuthApi)
+  const isAuthenticated = Boolean(apiAuth?.auth)
+
+  // When auth state changes to authenticated, fetch tasks from backend
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        if (isAuthenticated) {
+          const tasks = await getTasks()
+          if (!mounted) return
+          const completed = Array.isArray(tasks) ? tasks.filter((t) => t.completed === true).length : 0
+          setBackendTasksCompleted(completed)
+        }
+      } catch {
+        // ignore
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [isAuthenticated])
 
   const tasks: Task[] = useMemo(() => {
     try {
@@ -64,10 +89,23 @@ export default function Streak() {
           setBackendTotalHours(totals.totalHours ?? Math.floor((totals.totalMinutes ?? 0) / 60))
           // fetch streak from stats (still authoritative for streak)
           try {
-            const stats = await getPomodoroStats()
+            const stats = await getStreak()
             if (!mounted) return
             setBackendCurrentStreak(stats.currentStreak ?? 0)
-          } catch (e) {
+            if (typeof stats.completedTasks === "number") setBackendTasksCompleted(stats.completedTasks)
+          } catch {
+            // ignore
+          }
+
+          // if authenticated, fetch tasks from server to count completed tasks
+          try {
+            if (isAuthenticated) {
+              const tasks = await getTasks()
+              if (!mounted) return
+              const completed = Array.isArray(tasks) ? tasks.filter((t) => t.completed === true).length : 0
+              setBackendTasksCompleted(completed)
+            }
+          } catch {
             // ignore
           }
         } catch (err) {
@@ -85,20 +123,46 @@ export default function Streak() {
             try {
               const totals = await getPomodoroTotals()
               setBackendTotalHours(totals.totalHours ?? Math.floor((totals.totalMinutes ?? 0) / 60))
-            } catch (e) {
+            } catch {
               // fallback to any provided totalHours
               setBackendTotalHours(detail.totalHours ?? Math.floor((detail.totalSeconds ?? 0) / 3600))
             }
           })()
-          setBackendCurrentStreak(detail.currentStreak ?? 0)
+          // only update current streak when the dispatched event includes it
+          if (detail.currentStreak !== undefined && detail.currentStreak !== null) {
+            setBackendCurrentStreak(detail.currentStreak)
+          }
+          // update completed tasks when provided by the event (e.g. login/signup)
+          if (detail.completedTasks !== undefined && detail.completedTasks !== null) {
+            setBackendTasksCompleted(detail.completedTasks)
+          }
         }
-      } catch (err) { }
+      } catch { }
     }
     window.addEventListener("pomodoro:updated", onUpdate as EventListener)
+    const onTasksUpdate = (e: Event) => {
+      try {
+        const d = (e as CustomEvent).detail
+        if (d && typeof d.completed === "number") setBackendTasksCompleted(d.completed)
+      } catch {}
+    }
+    window.addEventListener("tasks:updated", onTasksUpdate as EventListener)
     return () => {
       mounted = false
       window.removeEventListener("pomodoro:updated", onUpdate as EventListener)
+      window.removeEventListener("tasks:updated", onTasksUpdate as EventListener)
     }
+  }, [isAuthenticated])
+
+  // read persisted completed count (if any) as fallback
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("study-buddy.completedCount.v1")
+      if (raw != null) {
+        const n = Number(raw)
+        if (!Number.isNaN(n)) setBackendTasksCompleted(n)
+      }
+    } catch {}
   }, [])
 
   const tasksWithISO = useMemo(
@@ -111,7 +175,7 @@ export default function Streak() {
   )
 
   // Calculate stats
-  const completedCount = tasksWithISO.filter((t) => t.completed).length
+  const completedCount = tasksWithISO.filter((t) => t.completed === true).length
 
   // Prefer backend total hours if available
   const totalHours = backendTotalHours ?? completedCount
@@ -136,8 +200,8 @@ export default function Streak() {
 
   const dailyStreak = backendCurrentStreak ?? localDailyStreak
 
-  // Tasks completed
-  const tasksCompleted = completedCount
+  // Tasks completed (prefer backend count when available)
+  const tasksCompleted = backendTasksCompleted ?? completedCount
 
   // Badge progression (unlocked at 10, 25, 50, 75, 100 tasks)
   const badgeThresholds = [10, 25, 50, 75, 100]

@@ -47,7 +47,8 @@ export default function Signup() {
     if (!parsed.success) {
       const issues: Record<string, string> = {}
       parsed.error.issues.forEach((i) => {
-        if (i.path?.length) issues[i.path[0].toString()] = i.message
+        const key = Array.isArray(i.path) && i.path.length ? String(i.path[0]) : ""
+        if (key) issues[key] = i.message
       })
       setFieldErrors(issues)
       return
@@ -73,6 +74,28 @@ export default function Signup() {
         if (data.success) {
           apiAuth?.setAuth(true)
           if (data.user) apiAuth?.setUser(data.user)
+          // broadcast initial stats so pages (eg. Streak) update immediately
+          try {
+            const stats = (data as any).stats
+            const completed = (data as any).completedTasks
+            if (stats || typeof completed === "number") {
+              const totalMinutes = stats?.totalPomodoroMinutes ?? 0
+              const totalHours = Math.floor(totalMinutes / 60)
+              const totalSeconds = totalMinutes * 60
+              window.dispatchEvent(
+                new CustomEvent("pomodoro:updated", {
+                  detail: {
+                    currentStreak: stats?.currentStreak ?? 0,
+                    totalHours,
+                    totalSeconds,
+                    completedTasks: typeof completed === "number" ? completed : undefined,
+                  },
+                }),
+              )
+            }
+          } catch {
+            // ignore
+          }
           navigate("/")
         } else {
           if ((data as any)?.errors?.fieldErrors) {

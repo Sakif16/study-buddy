@@ -38,6 +38,28 @@ export default function Auth() {
     if (data.success) {
       apiAuth!.setAuth(true)
       if ((data as any).user) apiAuth!.setUser((data as any).user)
+      // if backend returned stats, broadcast them so pages (eg. Streak) update immediately
+      try {
+        const stats = (data as any).stats
+        const completed = (data as any).completedTasks
+        if (stats || typeof completed === "number") {
+          const totalMinutes = stats?.totalPomodoroMinutes ?? 0
+          const totalHours = Math.floor(totalMinutes / 60)
+          const totalSeconds = totalMinutes * 60
+          window.dispatchEvent(
+            new CustomEvent("pomodoro:updated", {
+              detail: {
+                currentStreak: stats?.currentStreak ?? 0,
+                totalHours,
+                totalSeconds,
+                completedTasks: typeof completed === "number" ? completed : undefined,
+              },
+            }),
+          )
+        }
+      } catch {
+        // ignore
+      }
       return navigate("/")
     } else {
       // TODO: render errors in-page
