@@ -44,3 +44,19 @@ export async function getPomodoroStats() {
   if (!res.ok) throw new Error("failed to get stats")
   return res.json()
 }
+
+export async function getStreak() {
+  const res = await fetch("http://localhost:3000/api/streak", {
+    credentials: "include",
+  })
+  if (!res.ok) throw new Error("failed to get streak")
+  return res.json()
+}
+
+export async function getTasks() {
+  const res = await fetch("http://localhost:3000/api/tasks", {
+    credentials: "include",
+  })
+  if (!res.ok) throw new Error("failed to get tasks")
+  return res.json()
+}

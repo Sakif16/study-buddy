@@ -79,10 +79,22 @@ router.put("/:id", async (req, res) => {
     if (!task) return res.status(404).json({ error: "not found" })
 
     const payload = TaskSchema.partial().parse(req.body)
+    const updateData: Record<string, unknown> = {}
+    if (Object.hasOwn(payload, "title"))
+      updateData.title = payload.title ?? null
+    if (Object.hasOwn(payload, "notes"))
+      updateData.notes = payload.notes ?? null
+    if (Object.hasOwn(payload, "dueDate"))
+      updateData.dueDate = payload.dueDate ?? null
+    if (Object.hasOwn(payload, "dueTime"))
+      updateData.dueTime = payload.dueTime ?? null
+    if (Object.hasOwn(payload, "completed"))
+      updateData.completed = payload.completed
     const updated = await db.task.update({
       where: { id: req.params.id },
-      data: payload as Prisma.TaskUpdateInput,
+      data: updateData,
     })
+    // Note: completedTasks syncing is handled on login/streak fetch to avoid schema/type mismatch here.
     res.json(updated)
   } catch (err) {
     console.error("[tasks] update error", err)
@@ -104,6 +116,7 @@ router.patch("/:id/toggle", async (req, res) => {
       where: { id: req.params.id },
       data: { completed: !task.completed },
     })
+    // Note: completedTasks syncing is handled on login/streak fetch to avoid schema/type mismatch here.
     res.json(updated)
   } catch (err) {
     console.error("[tasks] toggle error", err)
@@ -121,9 +134,8 @@ router.delete("/:id", async (req, res) => {
     })
     if (!task) return res.status(404).json({ error: "not found" })
 
-    await db.task.delete({
-      where: { id: task.id },
-    })
+    await db.task.delete({ where: { id: task.id } })
+    // Note: completedTasks syncing is handled on login/streak fetch to avoid schema/type mismatch here.
     res.sendStatus(204)
   } catch (err) {
     console.error("[tasks] delete error", err)
