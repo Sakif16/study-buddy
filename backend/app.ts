@@ -1,4 +1,5 @@
 import path from "node:path"
+import fs from "node:fs"
 
 import "dotenv/config"
 
@@ -47,6 +48,50 @@ app.use(express.urlencoded({ extended: true }))
 app.use(express.text())
 
 app.use("/public", express.static(path.join(import.meta.dirname, "public")))
+app.use("/uploads", express.static(path.join(import.meta.dirname, "uploads")))
+
+// Public attachment serving for notes (returns inline for images/PDFs)
+app.get('/api/notes/:id/attachments/:filename', (req, res) => {
+  try {
+    const raw = req.params.filename
+    const filename = decodeURIComponent(raw)
+    if (filename.includes('..') || path.isAbsolute(filename)) return res.status(400).json({ error: 'invalid filename' })
+    const candidates = [
+      path.join(import.meta.dirname, 'uploads', req.params.id, filename),
+      path.join(import.meta.dirname, 'routes', 'uploads', req.params.id, filename),
+      path.join(import.meta.dirname, '..', 'uploads', req.params.id, filename),
+      path.join(process.cwd(), 'uploads', req.params.id, filename),
+      path.join(process.cwd(), 'backend', 'uploads', req.params.id, filename),
+    ]
+
+    let filePath: string | null = null
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        filePath = p
+        break
+      }
+    }
+    if (!filePath) {
+      console.error('[app] attachment not found, checked paths:', candidates)
+      return res.status(404).json({ error: 'file not found' })
+    }
+    console.log('[app] serving attachment from', filePath)
+
+    const ext = path.extname(filename).toLowerCase()
+    const inlineTypes = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf']
+    if (inlineTypes.includes(ext)) {
+      res.setHeader('Content-Disposition', 'inline')
+    } else {
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filename)}"`)
+    }
+    try { res.type(ext) } catch (e) { }
+    res.setHeader('Cache-Control', 'public, max-age=86400')
+    return res.sendFile(filePath)
+  } catch (err) {
+    console.error('[app] serve attachment error', err)
+    return res.status(500).json({ error: 'failed to serve attachment' })
+  }
+})
 
 app.use("/", auth)
 app.use("/assignments", assignments)

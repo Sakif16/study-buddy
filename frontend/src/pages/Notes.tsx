@@ -10,6 +10,7 @@ interface Note {
   createdAt: Date;
   updatedAt: Date;
   isFavorite: boolean;
+  attachments?: { filename: string; url: string }[];
 }
 
 interface Category {
@@ -79,6 +80,7 @@ export default function Notes() {
             createdAt: new Date(n.createdAt),
             updatedAt: new Date(n.updatedAt),
             isFavorite: !!n.isFavorite,
+            attachments: Array.isArray(n.attachments) ? n.attachments.map((a: any) => ({ filename: a.filename || a, url: a.url || a })) : [],
           }))
           setNotes(mapped)
         }
@@ -118,6 +120,7 @@ export default function Notes() {
           createdAt: new Date(n.createdAt),
           updatedAt: new Date(n.updatedAt),
           isFavorite: !!n.isFavorite,
+          attachments: Array.isArray(n.attachments) ? n.attachments.map((a: any) => ({ filename: a.filename || a, url: a.url || a })) : [],
         }
         setNotes([newNote, ...notes])
         setSelectedNote(newNote)
@@ -177,6 +180,7 @@ export default function Notes() {
           createdAt: new Date(n.createdAt),
           updatedAt: new Date(n.updatedAt),
           isFavorite: typeof n.isFavorite === 'boolean' ? n.isFavorite : updatedNote.isFavorite,
+          attachments: Array.isArray(n.attachments) ? n.attachments.map((a: any) => ({ filename: a.filename || a, url: a.url || a })) : [],
         }
         setNotes(notes.map((it) => (it.id === serverNote.id ? serverNote : it)))
         setSelectedNote(serverNote)
@@ -287,6 +291,36 @@ export default function Notes() {
     return categories.find((c) => c.id === categoryId)?.name || 'Unknown';
   };
 
+  // attachment viewer state
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null)
+  const [viewerMime, setViewerMime] = useState<string | null>(null)
+  const closeViewer = () => {
+    if (viewerUrl && viewerUrl.startsWith('blob:')) URL.revokeObjectURL(viewerUrl)
+    setViewerUrl(null)
+    setViewerMime(null)
+  }
+
+  // upload files for a note (kept inside component so it can update state)
+  const uploadFilesForNote = async (noteId: string, files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const form = new FormData()
+    Array.from(files).forEach((f) => form.append('files', f))
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/notes/${noteId}/attachments`, {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      })
+      if (!res.ok) throw new Error('upload failed')
+      const data = await res.json()
+      const attachments = Array.isArray(data.attachments) ? data.attachments.map((a: any) => ({ filename: a.filename || a.originalName || a, url: a.url || a, mime: a.mime || a.mimetype || '' })) : []
+      // merge into note and notes list
+      setNotes((cur) => cur.map((n) => n.id === noteId ? { ...n, attachments: [...(n.attachments || []), ...attachments] } : n))
+      if (selectedNote?.id === noteId) setSelectedNote((s) => s ? { ...s, attachments: [...(s.attachments || []), ...attachments] } : s)
+    } catch (err) {
+      console.error('attachment upload failed', err)
+    }
+  }
   return (
     <div className="min-h-screen bg-white text-black p-6">
       <div className="max-w-7xl mx-auto">
@@ -592,6 +626,15 @@ export default function Notes() {
                           className="flex-1 w-full bg-white text-black px-3 py-2 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0DB19B] resize-none"
                           placeholder="Start typing your notes..."
                         />
+                        <div className="mt-3">
+                          <label className="block text-sm text-gray-600 mb-2">Attachments</label>
+                          <input
+                            type="file"
+                            multiple
+                            onChange={(e) => uploadFilesForNote(selectedNote.id, e.target.files)}
+                            className="text-sm"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div>
@@ -603,6 +646,74 @@ export default function Notes() {
                             )}
                           </p>
                         </div>
+                        {selectedNote.attachments && selectedNote.attachments.length > 0 && (
+                          <div className="mt-4">
+                            <h3 className="text-sm font-medium mb-2">Attachments</h3>
+                            <ul className="space-y-2">
+                              {selectedNote.attachments.map((a) => {
+                                const url = `${BACKEND_URL}${a.url}`
+                                const lower = (a.filename || '').toLowerCase()
+                                const isImage = lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif') || lower.endsWith('.webp')
+                                const isPdf = lower.endsWith('.pdf')
+                                return (
+                                  <li key={a.url}>
+                                    <a
+                                      href={url}
+                                      target={isImage || isPdf ? undefined : '_blank'}
+                                      rel={isImage || isPdf ? undefined : 'noreferrer'}
+                                      onClick={async (e) => {
+                                        if (isImage || isPdf) {
+                                          e.preventDefault()
+                                          setViewerMime(isImage ? 'image' : 'pdf')
+                                          try {
+                                            // fetch as blob to avoid any embedding issues and support auth if needed
+                                            const res = await fetch(url, { credentials: 'include' })
+                                            if (!res.ok) throw new Error('fetch failed')
+                                            const blob = await res.blob()
+                                            const objUrl = URL.createObjectURL(blob)
+                                            // revoke previous blob if any
+                                            if (viewerUrl && viewerUrl.startsWith('blob:')) URL.revokeObjectURL(viewerUrl)
+                                            setViewerUrl(objUrl)
+                                          } catch (err) {
+                                            console.error('failed to fetch attachment for viewer', err)
+                                            // fallback: open in new tab
+                                            window.open(url, '_blank')
+                                          }
+                                        }
+                                      }}
+                                      className="text-[#0DB19B] hover:underline"
+                                    >
+                                      {a.filename}
+                                    </a>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* viewer modal */}
+                        {viewerUrl && (
+                          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={closeViewer}>
+                            <div className="bg-white p-2 rounded max-w-4xl max-h-[90vh] w-full mx-4" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex justify-end mb-2">
+                                <button onClick={closeViewer} className="text-gray-700 font-semibold">Close</button>
+                              </div>
+                              <div className="overflow-auto">
+                                {viewerMime === 'image' && (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={viewerUrl} alt="attachment" className="max-w-full h-auto mx-auto" />
+                                )}
+                                {viewerMime === 'pdf' && (
+                                  <iframe src={viewerUrl} className="w-full h-[80vh]" title="pdf-viewer" />
+                                )}
+                                {(!viewerMime || (viewerMime !== 'image' && viewerMime !== 'pdf')) && (
+                                  <a href={viewerUrl!} target="_blank" rel="noreferrer" className="text-[#0DB19B]">Open attachment</a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         <p className="text-xs text-gray-600 mt-6">
                           Created:{' '}
                           {selectedNote.createdAt.toLocaleDateString()} -{' '}
@@ -638,3 +749,6 @@ export default function Notes() {
     </div>
   );
 }
+
+// attachments upload
+
