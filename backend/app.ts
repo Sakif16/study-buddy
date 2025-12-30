@@ -23,6 +23,8 @@ import streak from "./routes/streak.js"
 
 import notesRoutes from "./routes/notes.js"
 import categoriesRoutes from "./routes/categories.js"
+import feedbackRoutes from "./routes/feedback.js"
+import adminRoutes from "./routes/admin.js"
 
 const app = express()
 const PORT = parseInt(process.env.PORT ?? "3000")
@@ -79,3 +81,7 @@ app.use("/api/pomodoro", pomodoro)
 app.use("/api/quotes", quotes)
 app.use("/api/noise", noiseFiles)
 app.use("/api/streak", streak)
+
+// feedback endpoint (authenticated users) and admin endpoints
+app.use("/", feedbackRoutes)
+app.use("/", adminRoutes)

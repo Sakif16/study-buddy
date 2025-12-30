@@ -25,12 +25,15 @@ import MissedTasks from "./pages/MissedTasks"
 import Auth from "./pages/Auth"
 import Signup from "./pages/Signup"
 import Profile from "./pages/Profile"
+import AdminDashboard from "./pages/AdminDashboard.tsx"
+import AdminFeedbacks from "./pages/AdminFeedbacks.tsx"
 import { useContext, useEffect, useState } from "react"
 import AuthApi from "./AuthApi"
 import { BACKEND_URL } from "./constants"
 
 function AppContent() {
   const [auth, setAuth] = useState(false)
+  const [admin, setAdmin] = useState(false)
   const [user, setUser] = useState<null | {
     id: string
     username: string
@@ -46,11 +49,13 @@ function AppContent() {
           signal: controller.signal,
           credentials: "include",
         })
-        const { status, user } = (await res.json()) as {
+        const { status, user, admin } = (await res.json()) as {
           status: boolean
+          admin?: boolean
           user: null | { id: string; username: string; name?: string | null }
         }
         setAuth(status)
+        setAdmin(Boolean(admin))
         setUser(user)
         console.log(`read-session status is ${status}`)
       } catch (error) {
@@ -67,7 +72,7 @@ function AppContent() {
     location.pathname === "/auth" || location.pathname === "/signup"
 
   return (
-    <AuthApi value={{ auth, setAuth, user, setUser }}>
+    <AuthApi value={{ auth, setAuth, admin, setAdmin, user, setUser }}>
       <PomodoroProvider>
         <div className="app-root min-h-screen bg-[#0DB19B] text-black flex flex-col">
           {!hideNavbar && <Navbar />}
@@ -92,6 +97,12 @@ function AppContent() {
                 <Route path="/charts" element={<Charts />} />
                 <Route path="/notes" element={<Notes />} />
                 <Route path="/missed-tasks" element={<MissedTasks />} />
+
+                {/* admin-only routes */}
+                <Route element={<AdminProtectedRoutes />}>
+                  <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                  <Route path="/admin/feedbacks" element={<AdminFeedbacks />} />
+                </Route>
               </Route>
             </Routes>
           </main>
@@ -114,6 +125,15 @@ function App() {
 function ProtectedRoutes() {
   const authApi = useContext(AuthApi)
   return authApi?.auth ? <Outlet /> : <Navigate to="/auth" replace={true} />
+}
+
+function AdminProtectedRoutes() {
+  const authApi = useContext(AuthApi)
+  return authApi?.auth && authApi?.admin ? (
+    <Outlet />
+  ) : (
+    <Navigate to="/" replace={true} />
+  )
 }
 
 function Logout() {

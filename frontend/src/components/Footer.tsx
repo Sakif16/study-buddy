@@ -1,22 +1,42 @@
-import { useState } from "react"
+import { useContext, useState } from "react"
+import AuthApi from "../AuthApi"
+import { BACKEND_URL } from "../constants"
 
 export default function Footer() {
   const [feedback, setFeedback] = useState("")
-  const [status, setStatus] = useState<"idle" | "sent">("idle")
+  const [status, setStatus] = useState<"idle" | "sent" | "error">("idle")
   const MAX = 200
+  const auth = useContext(AuthApi)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = feedback.trim()
     if (!trimmed) return
 
-    // For now just log the feedback; backend integration can be added later
-    console.log("User feedback:", trimmed)
-    setStatus("sent")
-    setFeedback("")
+    if (!auth?.auth) {
+      setStatus("error")
+      return
+    }
 
-    // Clear the success message after a short delay
-    setTimeout(() => setStatus("idle"), 3000)
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ content: trimmed }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setStatus("sent")
+        setFeedback("")
+        setTimeout(() => setStatus("idle"), 3000)
+      } else {
+        setStatus("error")
+      }
+    } catch (err) {
+      console.error("failed to send feedback", err)
+      setStatus("error")
+    }
   }
 
   return (
@@ -47,7 +67,7 @@ export default function Footer() {
             </div>
             <button
               type="submit"
-              disabled={!feedback.trim()}
+              disabled={!feedback.trim() || !auth?.auth}
               className="inline-flex items-center px-3 py-1 bg-teal-500 text-white rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Send
@@ -55,9 +75,21 @@ export default function Footer() {
           </div>
         </form>
 
+        {!auth?.auth && (
+          <div className="mt-2 md:mt-0 text-sm text-gray-700">
+            Please log in to send feedback.
+          </div>
+        )}
+
         {status === "sent" && (
           <div className="mt-2 md:mt-0 text-sm text-green-600">
             ✅ Thanks for your feedback!
+          </div>
+        )}
+
+        {status === "error" && (
+          <div className="mt-2 md:mt-0 text-sm text-red-600">
+            Unable to send feedback.
           </div>
         )}
       </div>

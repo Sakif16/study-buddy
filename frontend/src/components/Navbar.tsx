@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom"
 import AuthApi from "../AuthApi"
 import { BACKEND_URL } from "../constants"
 
-const links = [
+const defaultLinks = [
   { to: "/", label: "Home" },
   { to: "/motivation", label: "Study" },
   { to: "/assignments", label: "Assignments" },
@@ -14,6 +14,11 @@ const links = [
   { to: "/missed-tasks", label: "Missed Tasks" },
   { to: "/wordle", label: "Wordle" },
   { to: "/ai-buddy", label: "Ai Buddy" },
+]
+
+const adminLinks = [
+  { to: "/admin/dashboard", label: "Dashboard" },
+  { to: "/admin/feedbacks", label: "User Feedbacks" },
 ]
 
 export default function Navbar() {
@@ -32,6 +37,7 @@ export default function Navbar() {
       console.error("logout failed", err)
     } finally {
       authApi?.setAuth(false)
+      authApi?.setAdmin?.(false)
       authApi?.setUser(null)
       setUserOpen(false)
       setOpen(false)
@@ -73,7 +79,7 @@ export default function Navbar() {
 
         {/* Desktop nav: horizontally scrollable to accommodate many items */}
         <nav className="hidden md:flex items-center gap-2 overflow-x-auto">
-          {links.map((l) => (
+          {(authApi?.admin ? adminLinks : defaultLinks).map((l) => (
             <NavLink
               key={l.to}
               to={l.to}
@@ -147,7 +153,7 @@ export default function Navbar() {
       {open && (
         <div className="md:hidden bg-[#DAF9EF]/95">
           <div className="px-4 pb-4 pt-2 flex flex-col gap-1">
-            {links.map((l) => (
+            {(authApi?.admin ? adminLinks : defaultLinks).map((l) => (
               <NavLink
                 key={l.to}
                 to={l.to}
