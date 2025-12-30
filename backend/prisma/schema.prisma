@@ -33,6 +33,7 @@ model user {
   receivedInvites Invitation[]  @relation("InvitationTo")
   messages        Message[]
   stats           UserStats?
+  feedbacks       Feedback[]
 }
 
 model assignment {
@@ -162,4 +163,13 @@ model UserStats {
   totalPomodoroMinutes Int       @default(0)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+}
+
+// Feedbacks created by users; linked to a user
+model Feedback {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  content   String
+  userId    String   @db.ObjectId
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }

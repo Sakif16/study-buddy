@@ -38,6 +38,14 @@ export default function Auth() {
     if (data.success) {
       apiAuth!.setAuth(true)
       if ((data as any).user) apiAuth!.setUser((data as any).user)
+      // admin handling
+      if ((data as any).admin) {
+        apiAuth!.setAdmin(true)
+        return navigate("/admin/dashboard")
+      } else {
+        apiAuth!.setAdmin(false)
+      }
+
       // if backend returned stats, broadcast them so pages (eg. Streak) update immediately
       try {
         const stats = (data as any).stats
@@ -52,7 +60,8 @@ export default function Auth() {
                 currentStreak: stats?.currentStreak ?? 0,
                 totalHours,
                 totalSeconds,
-                completedTasks: typeof completed === "number" ? completed : undefined,
+                completedTasks:
+                  typeof completed === "number" ? completed : undefined,
               },
             }),
           )
