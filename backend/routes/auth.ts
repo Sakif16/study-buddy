@@ -7,19 +7,40 @@ import express from "express"
 
 const router = express.Router()
 
-router.get("/auth", (req, res) =>
-  res.json({
-    status: !!req.session?.user,
-    admin: !!req.session?.admin,
-    user: req.session?.user
-      ? {
-          id: req.session.user.id,
-          username: req.session.user.username,
-          name: req.session.user.name,
-        }
-      : null,
-  }),
-)
+router.get("/auth", async (req, res) => {
+  try {
+    if (!req.session?.user)
+      return res.json({ status: false, admin: false, user: null })
+
+    // fetch authoritative user record and today's wordle state
+    const dbUser = await db.user.findUnique({
+      where: { id: req.session.user.id },
+    })
+    if (!dbUser) return res.json({ status: false, admin: false, user: null })
+
+    const today = new Date().toISOString().slice(0, 10)
+    const state = await db.wordleState.findUnique({
+      where: { userId_date: { userId: dbUser.id, date: today } },
+    })
+
+    const safeUser = {
+      id: dbUser.id,
+      username: dbUser.username,
+      name: dbUser.name ?? null,
+      wordleDate: state?.date ?? null,
+      wordleGamesPlayed: state?.gamesPlayed ?? 0,
+    }
+
+    return res.json({
+      status: true,
+      admin: !!req.session?.admin,
+      user: safeUser,
+    })
+  } catch (e) {
+    console.error("/auth error", e)
+    return res.json({ status: false, admin: false, user: null })
+  }
+})
 
 // update profile (username / password)
 router.patch("/profile", async (req, res) => {
@@ -218,7 +239,24 @@ router.post("/login", async (req, res) => {
       username: user.username,
       email: user.email,
       name: user.name ?? null,
+      wordleDate: null,
+      wordleGamesPlayed: 0,
     }
+
+    // attempt to read today's wordle state
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const state = await db.wordleState.findUnique({
+        where: { userId_date: { userId: user.id, date: today } },
+      })
+      if (state) {
+        safeUser.wordleDate = state.date
+        safeUser.wordleGamesPlayed = state.gamesPlayed
+      }
+    } catch (e) {
+      console.error("failed to read user wordle fields on login", e)
+    }
+
     return res.json({
       success: true,
       user: safeUser,
@@ -272,6 +310,8 @@ router.post("/register", async (req, res) => {
       username: user.username,
       email: user.email,
       name: user.name ?? null,
+      wordleDate: null,
+      wordleGamesPlayed: 0,
     }
     // store full user if you prefer; cast to any to satisfy SessionData typing
     req.session.user = user as unknown as user
