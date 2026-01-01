@@ -34,6 +34,8 @@ model user {
   messages        Message[]
   stats           UserStats?
   feedbacks       Feedback[]
+  words           Word[]
+  wordleStates    WordleState[]
 }
 
 model assignment {
@@ -172,4 +174,27 @@ model Feedback {
   userId    String   @db.ObjectId
   user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+}
+
+// Wordle words saved in DB and per-user state for daily games
+model Word {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  text         String        @unique
+  authorId     String?       @db.ObjectId
+  author       user?         @relation(fields: [authorId], references: [id])
+  createdAt    DateTime      @default(now())
+  wordleStates WordleState[]
+}
+
+model WordleState {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String   @db.ObjectId
+  user         user     @relation(fields: [userId], references: [id])
+  date         String
+  targetWordId String   @db.ObjectId
+  targetWord   Word     @relation(fields: [targetWordId], references: [id])
+  gamesPlayed  Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, date])
 }

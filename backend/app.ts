@@ -20,6 +20,7 @@ import pomodoro from "./routes/pomodoro.js"
 import quotes from "./routes/quotes.js"
 import noiseFiles from "./routes/noiseFiles.js"
 import streak from "./routes/streak.js"
+import wordleRoutes from "./routes/wordle.js"
 
 import notesRoutes from "./routes/notes.js"
 import categoriesRoutes from "./routes/categories.js"
@@ -81,6 +82,7 @@ app.use("/api/pomodoro", pomodoro)
 app.use("/api/quotes", quotes)
 app.use("/api/noise", noiseFiles)
 app.use("/api/streak", streak)
+app.use("/api/wordle", wordleRoutes)
 
 // feedback endpoint (authenticated users) and admin endpoints
 app.use("/", feedbackRoutes)
