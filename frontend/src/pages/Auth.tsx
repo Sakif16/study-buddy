@@ -59,6 +59,7 @@ export default function Auth() {
               detail: {
                 currentStreak: stats?.currentStreak ?? 0,
                 totalHours,
+                totalMinutes,
                 totalSeconds,
                 completedTasks:
                   typeof completed === "number" ? completed : undefined,
