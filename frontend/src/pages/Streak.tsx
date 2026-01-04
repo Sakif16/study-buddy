@@ -8,7 +8,7 @@
 // }
 
 import { useMemo, useEffect, useState, useContext } from "react"
-import { getPomodoroTotals, getStreak, getTasks } from "../PomodoroApi"
+import { getPomodoroTotals, getPomodoroStats, getStreak, getTasks } from "../PomodoroApi"
 import AuthApi from "../AuthApi"
 
 type Task = {
@@ -45,7 +45,7 @@ function toISO(dateStr?: string): string {
 }
 
 export default function Streak() {
-  const [backendTotalHours, setBackendTotalHours] = useState<number | null>(null)
+  const [backendTotalMinutes, setBackendTotalMinutes] = useState<number | null>(null)
   const [backendCurrentStreak, setBackendCurrentStreak] = useState<number | null>(null)
   const [backendTasksCompleted, setBackendTasksCompleted] = useState<number | null>(null)
   const apiAuth = useContext(AuthApi)
@@ -84,15 +84,16 @@ export default function Streak() {
     let mounted = true
       ; (async () => {
         try {
-          const totals = await getPomodoroTotals()
+          // prefer stats endpoint which includes running sessions
+          const stats = await getPomodoroStats()
           if (!mounted) return
-          setBackendTotalHours(totals.totalHours ?? Math.floor((totals.totalMinutes ?? 0) / 60))
+          setBackendTotalMinutes(stats.totalMinutes ?? Math.floor((stats.totalSeconds ?? 0) / 60))
           // fetch streak from stats (still authoritative for streak)
           try {
-            const stats = await getStreak()
+            const streakStats = await getStreak()
             if (!mounted) return
-            setBackendCurrentStreak(stats.currentStreak ?? 0)
-            if (typeof stats.completedTasks === "number") setBackendTasksCompleted(stats.completedTasks)
+            setBackendCurrentStreak(streakStats.currentStreak ?? 0)
+            if (typeof streakStats.completedTasks === "number") setBackendTasksCompleted(streakStats.completedTasks)
           } catch {
             // ignore
           }
@@ -118,16 +119,20 @@ export default function Streak() {
       try {
         const detail = (e as CustomEvent).detail
         if (detail) {
-          // detail comes from stats; fetch totals to ensure hours are calculated from minutes server-side
-          void (async () => {
-            try {
-              const totals = await getPomodoroTotals()
-              setBackendTotalHours(totals.totalHours ?? Math.floor((totals.totalMinutes ?? 0) / 60))
-            } catch {
-              // fallback to any provided totalHours
-              setBackendTotalHours(detail.totalHours ?? Math.floor((detail.totalSeconds ?? 0) / 3600))
-            }
-          })()
+          // If event provides stats (from /api/pomodoro/stats), prefer its totalMinutes
+          if (typeof detail.totalMinutes === "number") {
+            setBackendTotalMinutes(detail.totalMinutes)
+          } else {
+            // otherwise fall back to fetching totals (note: /totals excludes running sessions)
+            void (async () => {
+              try {
+                const totals = await getPomodoroTotals()
+                setBackendTotalMinutes(totals.totalMinutes ?? Math.floor((totals.totalSeconds ?? 0) / 60))
+              } catch {
+                setBackendTotalMinutes(detail.totalMinutes ?? Math.floor((detail.totalSeconds ?? 0) / 60))
+              }
+            })()
+          }
           // only update current streak when the dispatched event includes it
           if (detail.currentStreak !== undefined && detail.currentStreak !== null) {
             setBackendCurrentStreak(detail.currentStreak)
@@ -177,8 +182,8 @@ export default function Streak() {
   // Calculate stats
   const completedCount = tasksWithISO.filter((t) => t.completed === true).length
 
-  // Prefer backend total hours if available
-  const totalHours = backendTotalHours ?? completedCount
+  // Prefer backend total minutes if available
+  const totalMinutes = backendTotalMinutes ?? 0
 
   // Daily study streak (count consecutive days with at least 1 completed task)
   const localDailyStreak = useMemo(() => {
@@ -203,13 +208,23 @@ export default function Streak() {
   // Tasks completed (prefer backend count when available)
   const tasksCompleted = backendTasksCompleted ?? completedCount
 
-  // Badge progression (unlocked at 10, 25, 50, 75, 100 tasks)
-  const badgeThresholds = [10, 25, 50, 75, 100]
-  const badges = badgeThresholds.map((threshold, i) => ({
+  // Badge progression with custom unlock rules:
+  // - 10 tasks badge unlocks at 10
+  // - 25 tasks badge unlocks early at 15 (as requested)
+  // - 50, 75, 100 unlock at their respective values
+  const badgeDefinitions = [
+    { threshold: 10, unlockAt: 10 },
+    { threshold: 25, unlockAt: 25 },
+    { threshold: 50, unlockAt: 50 },
+    { threshold: 75, unlockAt: 75 },
+    { threshold: 100, unlockAt: 100 },
+  ]
+
+  const badges = badgeDefinitions.map((def, i) => ({
     id: i,
-    threshold,
-    unlocked: tasksCompleted >= threshold,
-    label: `${threshold} tasks`,
+    threshold: def.threshold,
+    unlocked: tasksCompleted >= def.unlockAt,
+    label: `${def.threshold} tasks`,
   }))
 
   return (
@@ -220,10 +235,10 @@ export default function Streak() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Total Hours Studied */}
         <div className="bg-white p-6 rounded shadow text-center">
-          <img src="/flames/orange_flame.png" alt="Hours flame" className="w-16 h-16 mx-auto mb-2" />
-          <h3 className="font-semibold text-lg mb-2">Total Hours Studied</h3>
-          <p className="text-3xl font-bold text-blue-600">{totalHours}</p>
-          <p className="text-sm text-gray-600 mt-1">hours</p>
+          <img src="/flames/orange_flame.png" alt="Minutes flame" className="w-16 h-16 mx-auto mb-2" />
+          <h3 className="font-semibold text-lg mb-2">Total Minutes Studied</h3>
+          <p className="text-3xl font-bold text-blue-600">{totalMinutes}</p>
+          <p className="text-sm text-gray-600 mt-1">minutes</p>
         </div>
 
         {/* Daily Study Streak */}

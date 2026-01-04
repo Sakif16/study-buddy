@@ -206,6 +206,7 @@ router.post("/login", async (req, res) => {
     // fetch current stats to return along with the user so frontend shows updated streak immediately
     let statsResp = null
     let completedTasksCount = 0
+    let computedTotalMinutes = 0
     try {
       const stats = await db.userStats.findUnique({
         where: { userId: user.id },
@@ -226,6 +227,35 @@ router.post("/login", async (req, res) => {
           where: { userId: user.id, completed: true },
         })
         completedTasksCount = actualCount
+        // compute authoritative pomodoro total minutes from sessions (include running sessions)
+        try {
+          const sessions = await db.pomodoroSession.findMany({ where: { userId: user.id } })
+          const MAX_SESSION_SECONDS = 6 * 3600
+          let totalSeconds = 0
+          const now = new Date()
+          for (const s of sessions) {
+            if (s.type && s.type !== "work") continue
+            if (s.duration != null) {
+              let raw = Math.max(0, s.duration ?? 0)
+              if (raw > MAX_SESSION_SECONDS) {
+                const maybeSeconds = Math.floor(raw / 1000)
+                if (maybeSeconds <= MAX_SESSION_SECONDS) raw = maybeSeconds
+                else raw = MAX_SESSION_SECONDS
+              }
+              totalSeconds += raw
+            } else {
+              const start = new Date(s.startAt)
+              if (start.getTime() > now.getTime() + 5 * 60 * 1000) continue
+              let elapsed = Math.max(0, Math.floor((now.getTime() - start.getTime()) / 1000))
+              if (elapsed > 24 * 3600) elapsed = MAX_SESSION_SECONDS
+              if (elapsed > MAX_SESSION_SECONDS) elapsed = MAX_SESSION_SECONDS
+              totalSeconds += elapsed
+            }
+          }
+          computedTotalMinutes = Math.floor(totalSeconds / 60)
+        } catch (e) {
+          console.error("failed to compute pomodoro totals for login response", e)
+        }
         // do not write back here; streak endpoint will return authoritative count and can sync stored value
       } catch (e) {
         console.error("failed to count completed tasks for login response", e)
@@ -260,7 +290,7 @@ router.post("/login", async (req, res) => {
     return res.json({
       success: true,
       user: safeUser,
-      stats: statsResp,
+      stats: statsResp ? { ...statsResp, totalPomodoroMinutes: computedTotalMinutes ?? statsResp.totalPomodoroMinutes } : statsResp,
       completedTasks: completedTasksCount,
     })
   } catch (error) {

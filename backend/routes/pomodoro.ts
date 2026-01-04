@@ -188,6 +188,22 @@ router.get("/totals", async (req, res) => {
     const remainingMinutes = totalMinutes % 60
 
     res.json({ totalSeconds, totalMinutes, totalHours, remainingMinutes })
+    // persist authoritative totalMinutes to UserStats so frontend can read a user-specific stored value
+    try {
+      await db.userStats.upsert({
+        where: { userId },
+        create: {
+          userId,
+          currentStreak: 0,
+          bestStreak: 0,
+          lastActive: null,
+          totalPomodoroMinutes: totalMinutes,
+        },
+        update: { totalPomodoroMinutes: totalMinutes },
+      })
+    } catch (e) {
+      console.error("failed to persist totalPomodoroMinutes in /totals", e)
+    }
   } catch (err) {
     console.error("[pomodoro] totals error", err)
     res.status(500).json({ error: "failed to compute totals" })
@@ -448,6 +464,22 @@ router.get("/stats", async (req, res) => {
     const totalMinutes = Math.floor(totalSeconds / 60)
     const totalHours = Math.floor(totalMinutes / 60)
     res.json({ totalSeconds, totalMinutes, totalHours, dailyTotals, currentStreak, longestStreak })
+    // persist authoritative totalMinutes to UserStats so frontend can read a user-specific stored value
+    try {
+      await db.userStats.upsert({
+        where: { userId },
+        create: {
+          userId,
+          currentStreak: currentStreak ?? 0,
+          bestStreak: longestStreak ?? 0,
+          lastActive: null,
+          totalPomodoroMinutes: totalMinutes,
+        },
+        update: { totalPomodoroMinutes: totalMinutes },
+      })
+    } catch (e) {
+      console.error("failed to persist totalPomodoroMinutes in /stats", e)
+    }
   } catch (err) {
     console.error("[pomodoro] stats error", err)
     res.status(500).json({ error: "failed to compute stats" })

@@ -52,6 +52,9 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
   const intervalRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
   const prevVals = useRef({ workMinutes, breakMinutes, isWork })
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
+  // Track base total seconds at session start so we can emit live totals without polling the server every second
+  const baseTotalSecondsRef = useRef<number | null>(null)
+  const sessionStartAtRef = useRef<Date | null>(null)
 
   useEffect(() => {
     const prev = prevVals.current
@@ -69,6 +72,19 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
       if (intervalRef.current !== null) window.clearInterval(intervalRef.current)
       intervalRef.current = window.setInterval(() => {
         setTimeLeft((t) => Math.max(0, t - 1))
+        try {
+          // Emit live totals every second using locally computed values when possible
+          if (currentSessionId && sessionStartAtRef.current) {
+            const now = new Date()
+            const elapsed = Math.max(0, Math.floor((now.getTime() - sessionStartAtRef.current.getTime()) / 1000))
+            const base = baseTotalSecondsRef.current ?? 0
+            const totalSeconds = base + elapsed
+            const totalMinutes = Math.floor(totalSeconds / 60)
+            window.dispatchEvent(new CustomEvent("pomodoro:updated", { detail: { totalSeconds, totalMinutes } }))
+          }
+        } catch (e) {
+          // ignore
+        }
       }, 1000)
     } else {
       if (intervalRef.current !== null) {
@@ -142,6 +158,18 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
         setCurrentSessionId(created.id ?? null)
         setHasStarted(true)
         setIsRunning(true)
+        // record session start time and base totals so we can compute live totals locally
+        try {
+          sessionStartAtRef.current = created.startAt ? new Date(created.startAt) : new Date()
+          const stats = await getPomodoroStats()
+          baseTotalSecondsRef.current = stats.totalSeconds ?? (stats.totalMinutes ?? 0) * 60
+          // dispatch an immediate update so UI reflects start instantly
+          const totalSeconds = baseTotalSecondsRef.current
+          const totalMinutes = Math.floor((totalSeconds ?? 0) / 60)
+          window.dispatchEvent(new CustomEvent("pomodoro:updated", { detail: { totalSeconds, totalMinutes } }))
+        } catch (e) {
+          console.error("failed to initialize live pomodoro totals", e)
+        }
       } catch (err) {
         console.error("failed to start pomodoro", err)
       }
@@ -158,6 +186,9 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
         console.error("failed to stop pomodoro", err)
       } finally {
         setCurrentSessionId(null)
+        // clear local live tracking
+        baseTotalSecondsRef.current = null
+        sessionStartAtRef.current = null
         setIsRunning(false)
       }
     }
