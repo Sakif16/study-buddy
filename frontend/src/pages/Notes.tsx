@@ -10,6 +10,7 @@ interface Note {
   createdAt: Date;
   updatedAt: Date;
   isFavorite: boolean;
+  attachments?: { name: string; url: string }[];
 }
 
 interface Category {
@@ -28,7 +29,7 @@ const DEFAULT_CATEGORIES: Category[] = [
 
 export default function Notes() {
   const [notes, setNotes] = useState<Note[]>([]);
-  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -79,6 +80,7 @@ export default function Notes() {
             createdAt: new Date(n.createdAt),
             updatedAt: new Date(n.updatedAt),
             isFavorite: !!n.isFavorite,
+            attachments: Array.isArray(n.attachments) ? n.attachments : [],
           }))
           setNotes(mapped)
         }
@@ -177,6 +179,7 @@ export default function Notes() {
           createdAt: new Date(n.createdAt),
           updatedAt: new Date(n.updatedAt),
           isFavorite: typeof n.isFavorite === 'boolean' ? n.isFavorite : updatedNote.isFavorite,
+          attachments: Array.isArray(n.attachments) ? n.attachments : (selectedNote?.attachments ?? []),
         }
         setNotes(notes.map((it) => (it.id === serverNote.id ? serverNote : it)))
         setSelectedNote(serverNote)
@@ -193,6 +196,33 @@ export default function Notes() {
 
     setIsEditing(false)
   };
+
+  // Attachments upload helper
+  const uploadAttachments = async (files: FileList | null) => {
+    if (!selectedNote || !files || files.length === 0) return
+    const form = new FormData()
+    for (let i = 0; i < files.length; i++) form.append('attachments', files[i])
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/notes/${selectedNote.id}/attachments`, {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      })
+      if (res.ok) {
+        const body = await res.json()
+        const uploaded: { name: string; url: string }[] = Array.isArray(body?.uploaded) ? body.uploaded : []
+        if (uploaded.length > 0) {
+          // update local notes state immediately so attachments appear without reload
+          setNotes((cur) => cur.map((n) => n.id === selectedNote.id ? { ...n, attachments: Array.isArray(n.attachments) ? [...n.attachments, ...uploaded] : uploaded } : n))
+          setSelectedNote((cur) => cur ? { ...cur, attachments: Array.isArray(cur.attachments) ? [...cur.attachments, ...uploaded] : uploaded } : cur)
+        }
+      } else {
+        console.error('upload failed', await res.text())
+      }
+    } catch (e) {
+      console.error('upload attachments failed', e)
+    }
+  }
 
   const deleteNote = (id: string) => {
     ; (async () => {
@@ -592,6 +622,22 @@ export default function Notes() {
                           className="flex-1 w-full bg-white text-black px-3 py-2 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0DB19B] resize-none"
                           placeholder="Start typing your notes..."
                         />
+                        <div className="mt-3">
+                          <label className="text-sm text-gray-600 mb-2 block">Attachments</label>
+                          <input type="file" multiple onChange={(e) => uploadAttachments(e.target.files)} className="text-sm" />
+                          {selectedNote?.attachments && selectedNote.attachments.length > 0 && (
+                            <div className="mt-2">
+                              <h4 className="text-sm font-medium mb-1">Existing attachments</h4>
+                              <ul className="text-sm list-disc list-inside">
+                                {selectedNote.attachments.map((a) => (
+                                  <li key={a.url}>
+                                    <a href={`${BACKEND_URL}${a.url}`} target="_blank" rel="noreferrer" className="text-[#0DB19B] hover:underline">{a.name}</a>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div>
@@ -613,6 +659,18 @@ export default function Notes() {
                           {selectedNote.updatedAt.toLocaleDateString()} -{' '}
                           {selectedNote.updatedAt.toLocaleTimeString()}
                         </p>
+                        {selectedNote.attachments && selectedNote.attachments.length > 0 && (
+                          <div className="mt-4">
+                            <h3 className="text-sm font-semibold mb-2">Attachments</h3>
+                            <ul className="space-y-1">
+                              {selectedNote.attachments.map((a) => (
+                                <li key={a.url}>
+                                  <a href={`${BACKEND_URL}${a.url}`} target="_blank" rel="noreferrer" className="text-[#0DB19B] hover:underline">{a.name}</a>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
