@@ -39,18 +39,18 @@ export default function GroupStudy() {
         body: JSON.stringify({ content: t }),
       })
         .then((r) => r.json())
-          .then((body) => {
-            if (body?.success && body.message) {
-              const m = body.message
-              const author = m.sender?.username ?? (m.senderId === currentUserId ? "You" : "")
-              const isSelf = (m.sender && m.sender.id === currentUserId) || m.senderId === currentUserId
-              setMessages((s) => [
-                ...s,
-                { id: m.id, author: author || "You", text: m.content, time, self: !!isSelf },
-              ])
-            }
-          })
-        .catch(() => {})
+        .then((body) => {
+          if (body?.success && body.message) {
+            const m = body.message
+            const author = m.sender?.username ?? (m.senderId === currentUserId ? "You" : "")
+            const isSelf = (m.sender && m.sender.id === currentUserId) || m.senderId === currentUserId
+            setMessages((s) => [
+              ...s,
+              { id: m.id, author: author || "You", text: m.content, time, self: !!isSelf },
+            ])
+          }
+        })
+        .catch(() => { })
     } else {
       setMessages((s) => [
         ...s,
@@ -60,13 +60,38 @@ export default function GroupStudy() {
     setInput("")
   }
 
+  const sendFile = (file: File | null) => {
+    if (!file) return
+    if (!selectedGroup) return
+    const form = new FormData()
+    form.append('file', file)
+    fetch(`http://localhost:3000/groups/${selectedGroup}/upload`, {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    })
+      .then((r) => r.json())
+      .then((body) => {
+        if (body?.success && body.message) {
+          const m = body.message
+          const author = m.sender?.username ?? (m.senderId === currentUserId ? "You" : "")
+          const isSelf = (m.sender && m.sender.id === currentUserId) || m.senderId === currentUserId
+          setMessages((s) => [
+            ...s,
+            { id: m.id, author: author || 'You', text: m.content, time: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), self: !!isSelf },
+          ])
+        }
+      })
+      .catch(() => { })
+  }
+
   const loadGroups = async () => {
     try {
       const res = await fetch("http://localhost:3000/groups", { credentials: "include" })
       if (!res.ok) return
       const body = await res.json()
       if (body?.success && Array.isArray(body.groups)) setGroups(body.groups)
-    } catch {}
+    } catch { }
   }
 
   const loadInvitations = async () => {
@@ -75,7 +100,7 @@ export default function GroupStudy() {
       if (!res.ok) return
       const body = await res.json()
       if (body?.success && Array.isArray(body.invitations)) setInvitations(body.invitations)
-    } catch {}
+    } catch { }
   }
 
   const createGroup = async () => {
@@ -92,7 +117,7 @@ export default function GroupStudy() {
         setNewGroupName("")
         loadGroups()
       }
-    } catch {}
+    } catch { }
   }
 
   const sendInvite = async (groupId: string, toUserId: string) => {
@@ -107,7 +132,7 @@ export default function GroupStudy() {
       if (body?.success) {
         loadSentInvitations()
       }
-    } catch {}
+    } catch { }
   }
 
   const loadUsers = async () => {
@@ -116,7 +141,7 @@ export default function GroupStudy() {
       if (!res.ok) return
       const body = await res.json()
       if (body?.success && Array.isArray(body.users)) setUsers(body.users)
-    } catch {}
+    } catch { }
   }
 
   const loadSentInvitations = async () => {
@@ -125,7 +150,7 @@ export default function GroupStudy() {
       if (!res.ok) return
       const body = await res.json()
       if (body?.success && Array.isArray(body.invitations)) setSentInvitations(body.invitations)
-    } catch {}
+    } catch { }
   }
 
   const acceptInvite = async (id: string) => {
@@ -140,7 +165,7 @@ export default function GroupStudy() {
         loadGroups()
         loadSentInvitations()
       }
-    } catch {}
+    } catch { }
   }
 
   const declineInvite = async (id: string) => {
@@ -154,7 +179,7 @@ export default function GroupStudy() {
         loadInvitations()
         loadSentInvitations()
       }
-    } catch {}
+    } catch { }
   }
 
   const loadMessages = async (groupId: string) => {
@@ -172,7 +197,7 @@ export default function GroupStudy() {
         }))
         setMessages(mapped)
       }
-    } catch {}
+    } catch { }
   }
 
   useEffect(() => {
@@ -205,7 +230,7 @@ export default function GroupStudy() {
       .then((b) => {
         if (b?.success && Array.isArray(b.users)) setGroupMembers(b.users.map((u: any) => u.id))
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [selectedGroup])
 
   return (
@@ -359,7 +384,25 @@ export default function GroupStudy() {
               messages.map((m) => (
                 <div key={m.id} className={`mb-4 ${m.self ? "text-right" : ""}`}>
                   <div className="text-sm text-white font-semibold">{m.self ? "You" : m.author} • <span className="text-xs text-white/60">{m.time}</span></div>
-                  <div className="text-white font-medium mt-1">{m.text}</div>
+                  <div className="text-white font-medium mt-1">
+                    {(() => {
+                      const isFile = typeof m.text === 'string' && m.text.startsWith('/public/uploads/')
+                      if (!isFile) return m.text
+                      const url = `http://localhost:3000${m.text}`
+                      const lower = m.text.toLowerCase()
+                      if (lower.match(/\.(png|jpe?g|gif|webp|bmp)$/)) {
+                        return <img src={url} alt="attachment" className="max-w-xs mx-auto rounded" />
+                      }
+                      if (lower.endsWith('.pdf')) {
+                        return (
+                          <a href={url} target="_blank" rel="noreferrer" className="underline text-white/90">Open PDF</a>
+                        )
+                      }
+                      return (
+                        <a href={url} target="_blank" rel="noreferrer" className="underline text-white/90">Download file</a>
+                      )
+                    })()}
+                  </div>
                 </div>
               ))
             )}
@@ -374,6 +417,12 @@ export default function GroupStudy() {
                 placeholder={selectedGroup ? "Type a message to the group..." : "Select a group to chat"}
                 className="flex-1 px-4 py-3 text-white placeholder-white outline-none border border-gray-300 rounded"
                 disabled={!selectedGroup}
+              />
+              <input
+                type="file"
+                onChange={(e) => sendFile(e.target.files ? e.target.files[0] : null)}
+                disabled={!selectedGroup}
+                className="text-sm text-white"
               />
               <button type="button" onClick={send} disabled={!selectedGroup} className="px-4 py-2 bg-[#1BECC9] text-black rounded-lg font-semibold">Send</button>
             </div>
