@@ -2,6 +2,9 @@ import express from "express"
 import z from "zod"
 import { db } from "../db.js"
 import type { Prisma } from "../generated/prisma/client.js"
+import path from "node:path"
+import fs from "node:fs"
+import { fileURLToPath } from "node:url"
 
 const router = express.Router()
 
@@ -19,6 +22,16 @@ const requireAuth = (
 }
 
 router.use(requireAuth)
+
+// ensure uploads dir exists: backend/public/uploads
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const uploadsDir = path.join(__dirname, "..", "public", "uploads")
+try {
+  fs.mkdirSync(uploadsDir, { recursive: true })
+} catch (e) {
+  console.error("failed to ensure uploads dir", e)
+}
 
 const CreateGroup = z.object({ name: z.string().min(1) })
 const InviteSchema = z.object({
@@ -291,6 +304,71 @@ router.post("/:id/messages", async (req, res) => {
         .json({ success: false, errors: z.flattenError(err) })
     console.error("[messages] create error", err)
     res.status(500).json({ success: false, message: "server error" })
+  }
+})
+
+// POST /:id/upload - upload a file and create a message with file path
+router.post(`/:id/upload`, async (req, res) => {
+  try {
+    if (!req.session.user) throw new Error("not authenticated")
+    const { id } = req.params
+    const userId = req.session!.user.id
+
+    const membership = await db.groupMember.findFirst({
+      where: { groupId: id, userId },
+    })
+    if (!membership)
+      return res.status(403).json({ success: false, message: "forbidden" })
+
+    // dynamically import multer like other routes so multer is optional
+    let multerPkg: any
+    try {
+      // @ts-ignore
+      multerPkg = await import('multer')
+    } catch (e) {
+      return res.status(501).json({ success: false, error: 'multer-not-installed', message: 'File upload support is not available. Please install multer in the backend.' })
+    }
+    const multer = multerPkg.default ?? multerPkg
+
+    const storage = multer.diskStorage({
+      destination: (req: express.Request, file: any, cb: (err: Error | null, dest: string) => void) => cb(null, uploadsDir),
+      filename: (req: express.Request, file: any, cb: (err: Error | null, filename: string) => void) => {
+        const safe = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`
+        cb(null, safe)
+      },
+    })
+
+    const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } })
+
+    upload.single('file')(req as any, res as any, async (err: any) => {
+      try {
+        if (err) {
+          console.error('/groups/:id/upload middleware error', err)
+          return res.status(400).json({ success: false, error: 'upload_failed', details: String(err) })
+        }
+        if (!req.file) return res.status(400).json({ success: false, error: 'no file uploaded' })
+        const file = req.file
+        const publicPath = `/public/uploads/${encodeURIComponent(file.filename)}`
+
+        // create message with content set to public path
+        const created = await db.message.create({
+          data: {
+            group: { connect: { id } },
+            sender: { connect: { id: userId } },
+            content: publicPath,
+          } as Prisma.MessageCreateInput,
+          include: { sender: true },
+        })
+
+        return res.status(201).json({ success: true, message: created, path: publicPath })
+      } catch (e) {
+        console.error('/groups/:id/upload error', e)
+        return res.status(500).json({ success: false, error: 'failed_to_upload' })
+      }
+    })
+  } catch (err) {
+    console.error('/groups/:id/upload outer error', err)
+    res.status(500).json({ success: false, message: 'server error' })
   }
 })
 
