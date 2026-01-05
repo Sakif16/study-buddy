@@ -1,12 +1,13 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
+import type { ReactNode } from "react"
 import { startPomodoro, stopPomodoro, getPomodoroStats } from "../PomodoroApi"
 import AuthApi from "../AuthApi"
 
 type PomodoroContextType = {
   workMinutes: number
   breakMinutes: number
-  setWorkMinutes: (n: number) => void
-  setBreakMinutes: (n: number) => void
+  setWorkMinutes: React.Dispatch<React.SetStateAction<number>>
+  setBreakMinutes: React.Dispatch<React.SetStateAction<number>>
   isWork: boolean
   setIsWork: (v: boolean) => void
   isRunning: boolean
@@ -20,10 +21,18 @@ type PomodoroContextType = {
 
 const PomodoroContext = createContext<PomodoroContextType | null>(null)
 
-export function PomodoroProvider({ children }: { children: React.ReactNode }) {
+export function PomodoroProvider({ children }: { children: ReactNode }) {
   const authApi = useContext(AuthApi)
   // track current user id so provider resets when a different user logs in
   const currentUserIdRef = useRef<string | null>(authApi?.user?.id ?? null)
+
+  const [workMinutes, setWorkMinutes] = useState<number>(25)
+  const [breakMinutes, setBreakMinutes] = useState<number>(5)
+
+  const [isWork, setIsWork] = useState<boolean>(true)
+  const [isRunning, setIsRunning] = useState<boolean>(false)
+  const [hasStarted, setHasStarted] = useState<boolean>(false)
+  const [timeLeft, setTimeLeft] = useState<number>(() => workMinutes * 60)
 
   useEffect(() => {
     const newId = authApi?.user?.id ?? null
@@ -38,16 +47,9 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
       setCurrentSessionId(null)
       currentUserIdRef.current = newId
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authApi?.user?.id])
+  }, [authApi?.user?.id, workMinutes])
 
-  const [workMinutes, setWorkMinutes] = useState<number>(25)
-  const [breakMinutes, setBreakMinutes] = useState<number>(5)
-
-  const [isWork, setIsWork] = useState<boolean>(true)
-  const [isRunning, setIsRunning] = useState<boolean>(false)
-  const [hasStarted, setHasStarted] = useState<boolean>(false)
-  const [timeLeft, setTimeLeft] = useState<number>(() => workMinutes * 60)
+  
 
   const intervalRef = useRef<ReturnType<typeof window.setInterval> | null>(null)
   const prevVals = useRef({ workMinutes, breakMinutes, isWork })
@@ -82,7 +84,7 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
             const totalMinutes = Math.floor(totalSeconds / 60)
             window.dispatchEvent(new CustomEvent("pomodoro:updated", { detail: { totalSeconds, totalMinutes } }))
           }
-        } catch (e) {
+        } catch {
           // ignore
         }
       }, 1000)
@@ -98,13 +100,11 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
         intervalRef.current = null
       }
     }
-  }, [isRunning])
+  }, [isRunning, currentSessionId])
 
   // While running, periodically compute and broadcast up-to-date stats
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null
-    const MIN_ACTIVE_SECONDS = 120
-
 
     const computeAndDispatch = async () => {
       try {
@@ -136,7 +136,7 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
           try {
             const stats = await getPomodoroStats()
             window.dispatchEvent(new CustomEvent("pomodoro:updated", { detail: stats }))
-          } catch (e) {}
+          } catch {}
         } catch (err) {
           console.error("failed to auto-stop pomodoro", err)
         }
@@ -180,7 +180,7 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
           try {
             const stats = await getPomodoroStats()
             window.dispatchEvent(new CustomEvent("pomodoro:updated", { detail: stats }))
-          } catch (e) {}
+          } catch {}
         }
       } catch (err) {
         console.error("failed to stop pomodoro", err)
