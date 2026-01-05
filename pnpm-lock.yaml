@@ -58,7 +58,7 @@ importers:
         specifier: ^1.10.1
         version: 1.10.1
       multer:
-        specifier: ^1.4.5-lts.1
+        specifier: 1.4.5-lts.2
         version: 1.4.5-lts.2
       zod:
         specifier: ^4.1.13
