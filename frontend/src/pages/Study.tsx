@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import PomodoroWidget from "../components/PomodoroWidget";
+import { getStudyBreak, getRandomQuote } from "../PomodoroApi";
 
 export default function Motivation() {
 	// Pomodoro is rendered by PomodoroWidget and persisted via PomodoroContext
@@ -27,10 +28,17 @@ export default function Motivation() {
 	const [quote, setQuote] = useState<string>(initialQuote);
 
 	// Pick a new random quote (used by the "New Quote" button)
-	const newQuote = () => {
+	const newQuote = async () => {
 		if (quotes.current.length === 0) return
-		const i = Math.floor(Math.random() * quotes.current.length)
-		setQuote(quotes.current[i] ?? quotes.current[0] ?? "")
+		try {
+			const q = await getRandomQuote()
+			const text = typeof q.text === 'string' ? q.text : ''
+			const author = typeof q.author === 'string' && q.author ? ` - ${q.author}` : ''
+			setQuote((text + author) || (quotes.current[0] ?? ''))
+		} catch {
+			const i = Math.floor(Math.random() * quotes.current.length)
+			setQuote(quotes.current[i] ?? quotes.current[0] ?? "")
+		}
 	}
 
 
@@ -38,414 +46,43 @@ export default function Motivation() {
 	// control initial reveal
 	const [showMotivation, setShowMotivation] = useState<boolean>(false);
 	const [showToast, setShowToast] = useState<boolean>(false);
-	const [isNoiseActive, setIsNoiseActive] = useState<boolean>(false);
-	const [showNoisePanel, setShowNoisePanel] = useState<boolean>(false);
-	// noise type and LFO refs (removed white & brown)
-	type NoiseKind = "pink" | "rain" | "forest" | "ocean";
-	const [noiseType, setNoiseType] = useState<NoiseKind>("pink");
-	// refs to support crossfade switching
-	const filterLfoRef = useRef<OscillatorNode | null>(null);
-	const filterLfoGainRef = useRef<GainNode | null>(null);
-	const ampLfoRef = useRef<OscillatorNode | null>(null);        // gentle amplitude LFO (ocean)
-	const ampLfoGainRef = useRef<GainNode | null>(null);
-	const birdIntervalRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
-	const audioContextRef = useRef<AudioContext | null>(null);
-	const noiseOscillatorRef = useRef<AudioBufferSourceNode | null>(null);
-	const noiseGainRef = useRef<GainNode | null>(null);
-	const [noiseVolume, setNoiseVolume] = useState<number>(0.18); // softer default
-	// track previous noise type to tune transitions, and bird-volume multiplier
-	const prevNoiseTypeRef = useRef<NoiseKind>(noiseType);
-	const birdVolumeRef = useRef<number>(0.6);
 
-	// generate different colored noise buffers
-	const createNoiseBuffer = (audioContext: AudioContext, type: NoiseKind, duration = 6) => {
-		const sampleRate = audioContext.sampleRate;
-		const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
-		const data = buffer.getChannelData(0);
+	// Study Break Suggestions state
+	const [showBreaksPanel, setShowBreaksPanel] = useState<boolean>(false);
+	const [healthIndex, setHealthIndex] = useState<number>(0);
+	const [mentalIndex, setMentalIndex] = useState<number>(0);
+	const [envIndex, setEnvIndex] = useState<number>(0);
+	const [energyIndex, setEnergyIndex] = useState<number>(0);
+	const [activeCategory, setActiveCategory] = useState<string>("");
+	const [currentSuggestion, setCurrentSuggestion] = useState<{ category: string; text: string } | null>(null);
 
-		// pink-based generator (used as gentle base for rain/forest/ocean)
-		if (type === "pink" || type === "rain" || type === "forest" || type === "ocean") {
-			let b0 = 0,
-				b1 = 0,
-				b2 = 0,
-				b3 = 0,
-				b4 = 0,
-				b5 = 0,
-				b6 = 0;
-			for (let i = 0; i < data.length; i++) {
-				const white = Math.random() * 2 - 1;
-				b0 = 0.99886 * b0 + white * 0.0555179;
-				b1 = 0.99332 * b1 + white * 0.0750759;
-				b2 = 0.96900 * b2 + white * 0.1538520;
-				b3 = 0.86650 * b3 + white * 0.3104856;
-				b4 = 0.55000 * b4 + white * 0.5329522;
-				b5 = -0.7616 * b5 - white * 0.0168980;
-				const out = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-				b6 = white * 0.115926;
-				// very soft scaling for deep calm and relaxation
-				data[i] = out * 0.022;
-			}
-			return buffer;
-		}
+	// Deterministic suggestion lists (no external calls)
+	const healthSuggestions = [
+		"Stand up and stretch for 2 minutes — loosen tight muscles.",
+		"Drink a full glass of water to rehydrate and refocus.",
+		"Do 10 gentle shoulder rolls to relieve tension.",
+		"Take a short walk around the room or hallway (3–5 minutes).",
+	];
+	const mentalSuggestions = [
+		"Close your eyes and take 6 deep breaths — calm your mind.",
+		"List 3 small wins from today to build momentum.",
+		"Do a 60-second progressive muscle relax: tense then release.",
+		"Try a 2-minute mindful body scan to reset attention.",
+	];
+	const envSuggestions = [
+		"Open a window for fresh air and a quick sensory reset.",
+		"Tidy your desk for 2 minutes — clutter drains focus.",
+		"Adjust lighting to reduce glare and increase contrast.",
+		"Add a quick plant-care task: water or reposition a plant.",
+	];
+	const energySuggestions = [
+		"Do 10 jumping jacks or jog in place for 60 seconds.",
+		"Eat a quick protein snack to steady your energy.",
+		"Splash cold water on your face or wrists for an instant jolt.",
+		"Stand and do 20 calf raises to boost circulation.",
+	];
 
-		// fallback to white (shouldn't be used)
-		for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-		return buffer;
-	};
-
-	// spawn bird chirps with varied patterns (used by forest)
-	const spawnChirp = (audioContext: AudioContext) => {
-		const now = audioContext.currentTime;
-		const chirpType = Math.random();
-
-		if (chirpType < 0.5) {
-			// single chirp: calmer, lower pitch natural call
-			const freq = 1200 + Math.random() * 1000;
-			const osc = audioContext.createOscillator();
-			osc.type = Math.random() > 0.6 ? "triangle" : "sine";
-			osc.frequency.setValueAtTime(freq + 800, now);
-			osc.frequency.exponentialRampToValueAtTime(freq, now + 0.12);
-
-			const bp = audioContext.createBiquadFilter();
-			bp.type = "bandpass";
-			bp.frequency.value = freq;
-			bp.Q.value = 4;
-
-			const g = audioContext.createGain();
-			// very soft envelope for calm calling and scaled by birdVolumeRef
-			const birdVol = birdVolumeRef.current ?? 0.6;
-			g.gain.setValueAtTime(0.0001, now);
-			g.gain.linearRampToValueAtTime((0.025 + Math.random() * 0.04) * birdVol, now + 0.025);
-			g.gain.exponentialRampToValueAtTime(0.0001, now + 0.35 + Math.random() * 0.2);
-
-			osc.connect(bp);
-			bp.connect(g);
-			g.connect(audioContext.destination);
-
-			osc.start(now);
-			osc.stop(now + 0.38 + Math.random() * 0.22);
-			setTimeout(() => {
-				try { osc.disconnect(); bp.disconnect(); g.disconnect(); } catch { }
-			}, 1200);
-		} else {
-			// lower, softer double chirp
-			const freq1 = 1100 + Math.random() * 900;
-			const freq2 = freq1 + 120 + Math.random() * 400;
-
-			for (let i = 0; i < 2; i++) {
-				setTimeout(() => {
-					const t = now + (i * 0.15);
-					const f = i === 0 ? freq1 : freq2;
-					const osc = audioContext.createOscillator();
-					osc.type = Math.random() > 0.65 ? "triangle" : "sine";
-					osc.frequency.setValueAtTime(f + 600, t);
-					osc.frequency.exponentialRampToValueAtTime(f, t + 0.1);
-
-					const bp = audioContext.createBiquadFilter();
-					bp.type = "bandpass";
-					bp.frequency.value = f;
-					bp.Q.value = 3.5;
-
-					const g = audioContext.createGain();
-					const birdVol = birdVolumeRef.current ?? 0.6;
-					g.gain.setValueAtTime(0.0001, t);
-					g.gain.linearRampToValueAtTime((0.02 + Math.random() * 0.035) * birdVol, t + 0.02);
-					g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32 + Math.random() * 0.18);
-
-					osc.connect(bp);
-					bp.connect(g);
-					g.connect(audioContext.destination);
-
-					osc.start(t);
-					osc.stop(t + 0.35 + Math.random() * 0.15);
-					setTimeout(() => {
-						try { osc.disconnect(); bp.disconnect(); g.disconnect(); } catch { }
-					}, 1200);
-				}, i === 0 ? 0 : 150);
-			}
-		}
-	};
-
-	// start noise (internal)
-	const startNoise = (type: NoiseKind) => {
-		const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-		const audioContext = new AudioContextClass() as AudioContext;
-		audioContextRef.current = audioContext;
-
-		const buffer = createNoiseBuffer(audioContext, type, 8);
-		const source = audioContext.createBufferSource();
-		source.buffer = buffer;
-		source.loop = true;
-
-		// gentle shaping tuned for calming/stress relief (softer for pink/rain)
-		const filterNode = audioContext.createBiquadFilter();
-		filterNode.type = type === "rain" ? "highpass" : "lowpass";
-		filterNode.frequency.value =
-			type === "ocean" ? 650 : type === "forest" ? 1500 : type === "rain" ? 600 : 1600;
-		filterNode.Q.value = 0.65;
-
-		const gainNode = audioContext.createGain();
-		gainNode.gain.value = 0.0001; // start near 0 for smooth fade in
-		noiseGainRef.current = gainNode;
-		// record currently active type and default bird volume
-		prevNoiseTypeRef.current = type;
-		// default bird volume; forest will override below for immediate calm
-		birdVolumeRef.current = 0.6;
-
-		// very subtle filter modulation for ultra-calm pink/rain
-		if (type === "pink" || type === "rain" || type === "ocean" || type === "forest") {
-			const fLfo = audioContext.createOscillator();
-			const fLfoGain = audioContext.createGain();
-			fLfo.type = "sine";
-			fLfo.frequency.value = type === "ocean" ? 0.04 : type === "forest" ? 0.09 : 0.015; // very slow for pink/rain
-			fLfoGain.gain.value = type === "pink" ? 15 : type === "rain" ? 12 : 35; // minimal depth for pink/rain
-			fLfo.connect(fLfoGain);
-			fLfoGain.connect(filterNode.frequency);
-			fLfo.start();
-			filterLfoRef.current = fLfo;
-			filterLfoGainRef.current = fLfoGain;
-		}
-
-		// ocean: add an ultra-slow, very shallow amplitude LFO to simulate calm swells
-		if (type === "ocean") {
-			// ensure previous amp LFO stopped
-			if (ampLfoRef.current) {
-				try { ampLfoRef.current.stop(); } catch { }
-				ampLfoRef.current.disconnect(); ampLfoRef.current = null;
-			}
-			if (ampLfoGainRef.current) {
-				ampLfoGainRef.current.disconnect(); ampLfoGainRef.current = null;
-			}
-			const aLfo = audioContext.createOscillator();
-			const aLfoGain = audioContext.createGain();
-			aLfo.type = "sine";
-			aLfo.frequency.value = 0.03; // very slow swell
-			// depth scaled by noiseVolume for gentle effect
-			aLfoGain.gain.value = Math.max(0.00008, noiseVolume * 0.02);
-			aLfo.connect(aLfoGain);
-			aLfoGain.connect(gainNode.gain);
-			aLfo.start();
-			ampLfoRef.current = aLfo;
-			ampLfoGainRef.current = aLfoGain;
-		}
-
-		source.connect(filterNode);
-		filterNode.connect(gainNode);
-		gainNode.connect(audioContext.destination);
-		source.start();
-
-		// smooth fade in (slower for more natural)
-		const now = audioContext.currentTime;
-		gainNode.gain.cancelScheduledValues(now);
-		gainNode.gain.setValueAtTime(0.0001, now);
-		// keep initial start conservative (cap to 60% of requested volume)
-		const startTarget = Math.max(0.001, Math.min(noiseVolume, 0.6) * 0.6);
-		gainNode.gain.exponentialRampToValueAtTime(startTarget, now + 2.0);
-
-		noiseOscillatorRef.current = source;
-		setIsNoiseActive(true);
-
-		// forest: schedule natural bird chirps at varied intervals
-		if (type === "forest") {
-			// immediate calm: lower bird volume and slightly sparser schedule for realism
-			birdVolumeRef.current = 0.45;
-			birdIntervalRef.current = window.setInterval(() => {
-				spawnChirp(audioContext);
-				if (Math.random() < 0.28) setTimeout(() => spawnChirp(audioContext), 500 + Math.random() * 1200);
-			}, 2600 + Math.random() * 3200);
-		}
-	};
-
-	// stop and cleanup
-	const stopNoise = () => {
-		const audioContext = audioContextRef.current;
-		if (!audioContext) return;
-		const now = audioContext.currentTime;
-		// fade out
-		if (noiseGainRef.current) {
-			const g = noiseGainRef.current;
-			g.gain.cancelScheduledValues(now);
-			// use the active gain node reference 'g' (noiseGainRef.current)
-			g.gain.setValueAtTime(g.gain.value, now);
-			g.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
-		}
-		// stop amp LFO if present
-		if (ampLfoRef.current) {
-			try { ampLfoRef.current.stop(); } catch { }
-			ampLfoRef.current.disconnect();
-			ampLfoRef.current = null;
-		}
-		if (ampLfoGainRef.current) {
-			ampLfoGainRef.current.disconnect();
-			ampLfoGainRef.current = null;
-		}
-
-		// stop source after fade
-		if (noiseOscillatorRef.current) {
-			try {
-				noiseOscillatorRef.current.stop(now + 1.3);
-			} catch { }
-			noiseOscillatorRef.current = null;
-		}
-		// stop LFO
-		if (filterLfoRef.current) {
-			try { filterLfoRef.current.stop(); } catch { }
-			filterLfoRef.current.disconnect();
-			filterLfoRef.current = null;
-		}
-		if (filterLfoGainRef.current) {
-			filterLfoGainRef.current.disconnect();
-			filterLfoGainRef.current = null;
-		}
-		// clear birds
-		if (birdIntervalRef.current) {
-			clearInterval(birdIntervalRef.current);
-			birdIntervalRef.current = null;
-		}
-		// close context after a short delay
-		setTimeout(() => {
-			if (audioContextRef.current) {
-				try { audioContextRef.current.close(); } catch { }
-				audioContextRef.current = null;
-			}
-			noiseGainRef.current = null;
-			setIsNoiseActive(false);
-		}, 1000);
-	};
-
-	// switch smoothly to a new type if playing
-	const switchNoise = (newType: NoiseKind) => {
-		if (!audioContextRef.current || !isNoiseActive) {
-			startNoise(newType);
-			return;
-		}
-		const audioContext = audioContextRef.current;
-		// create new source + gain
-		const buffer = createNoiseBuffer(audioContext, newType, 8);
-		const newSource = audioContext.createBufferSource();
-		newSource.buffer = buffer;
-		newSource.loop = true;
-		const newFilter = audioContext.createBiquadFilter();
-		newFilter.type = newType === "rain" ? "highpass" : "lowpass";
-		newFilter.frequency.value = newType === "ocean" ? 650 : newType === "forest" ? 1500 : newType === "rain" ? 600 : 1600;
-		const newGain = audioContext.createGain();
-		newGain.gain.value = 0.000001; // extremely low starting gain
-		newSource.connect(newFilter);
-		newFilter.connect(newGain);
-		newGain.connect(audioContext.destination);
-		newSource.start();
-
-		// slower crossfade for smooth transition
-		const now = audioContext.currentTime;
-		// determine conservative safe cap: make rain->forest and forest->ocean especially quiet
-		const prev = prevNoiseTypeRef.current;
-		let safeCap = Math.min(noiseVolume, 0.45); // general cap
-
-		// Make the specific transitions much quieter and gentler
-		if ((prev === "rain" && newType === "forest") || (prev === "forest" && newType === "ocean")) {
-			safeCap = Math.min(safeCap, 0.12); // much lower cap for these transitions
-			birdVolumeRef.current = 0.22; // keep birds very soft during/after transition
-		} else {
-			birdVolumeRef.current = 0.6;
-		}
-
-		// if new is ocean, create amp LFO for gentle swells on the new gain
-		if (newType === "ocean") {
-			if (ampLfoRef.current) {
-				try { ampLfoRef.current.stop(); } catch { }
-				ampLfoRef.current.disconnect();
-				ampLfoRef.current = null;
-			}
-			if (ampLfoGainRef.current) {
-				ampLfoGainRef.current.disconnect();
-				ampLfoGainRef.current = null;
-			}
-			const aLfo = audioContext.createOscillator();
-			const aLfoGain = audioContext.createGain();
-			aLfo.type = "sine";
-			aLfo.frequency.value = 0.03;
-			aLfoGain.gain.value = Math.max(0.00005, safeCap * 0.02);
-			aLfo.connect(aLfoGain);
-			aLfoGain.connect(newGain.gain);
-			aLfo.start();
-			ampLfoRef.current = aLfo;
-			ampLfoGainRef.current = aLfoGain;
-		}
-
-		// schedule new source: remain essentially silent while old fades, then very slowly rise to safeCap
-		newGain.gain.setValueAtTime(0.000001, now);
-		newGain.gain.exponentialRampToValueAtTime(0.00002, now + 3.2); // stay inaudible while old fades
-		newGain.gain.exponentialRampToValueAtTime(Math.max(0.001, safeCap * 0.25), now + 5.0); // gentle intermediate
-		newGain.gain.exponentialRampToValueAtTime(Math.max(0.001, safeCap), now + 8.0); // final quiet level
-
-		if (noiseGainRef.current) {
-			const oldG = noiseGainRef.current;
-			oldG.gain.cancelScheduledValues(audioContext.currentTime);
-			oldG.gain.setValueAtTime(oldG.gain.value, audioContext.currentTime);
-			// fade old source to near-silent by ~3s to avoid overlap at high volume
-			oldG.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 3.0);
-		}
-
-		// stop old source shortly after it goes silent
-		if (noiseOscillatorRef.current) {
-			try { noiseOscillatorRef.current.stop(audioContext.currentTime + 3.1); } catch { }
-		}
-
-		// now track the new nodes so future controls affect them
-		noiseOscillatorRef.current = newSource;
-		noiseGainRef.current = newGain;
-
-		// record newType as current
-		prevNoiseTypeRef.current = newType;
-
-		// recreate gentle filter LFO if needed (forest/ocean/pink)
-		if (filterLfoRef.current) {
-			try { filterLfoRef.current.stop(); } catch { }
-			filterLfoRef.current.disconnect();
-			filterLfoRef.current = null;
-		}
-		if (filterLfoGainRef.current) {
-			filterLfoGainRef.current.disconnect();
-			filterLfoGainRef.current = null;
-		}
-		if (newType === "ocean" || newType === "forest" || newType === "pink") {
-			const fLfo = audioContext.createOscillator();
-			const fLfoGain = audioContext.createGain();
-			fLfo.type = "sine";
-			fLfo.frequency.value = newType === "ocean" ? 0.04 : newType === "forest" ? 0.09 : 0.015;
-			fLfoGain.gain.value = newType === "pink" ? 15 : 35;
-			fLfo.connect(fLfoGain);
-			// connect the filter LFO gain to the new filter's frequency param
-			fLfoGain.connect(newFilter.frequency);
-			fLfo.start();
-			filterLfoRef.current = fLfo;
-			filterLfoGainRef.current = fLfoGain;
-		}
-
-		// handle bird scheduler for forest
-		if (birdIntervalRef.current) {
-			clearInterval(birdIntervalRef.current);
-			birdIntervalRef.current = null;
-		}
-		if (newType === "forest") {
-			// calmer immediate forest: slightly lower-volume birds and gentler rate
-			birdVolumeRef.current = 0.45;
-			birdIntervalRef.current = window.setInterval(() => {
-				spawnChirp(audioContext);
-				if (Math.random() < 0.28) setTimeout(() => spawnChirp(audioContext), 500 + Math.random() * 1200);
-			}, 2600 + Math.random() * 3200);
-		}
-	};
-
-	const handleVolumeChange = (newVolume: number) => {
-		// store requested volume but apply a gentle live-scaling so immediate changes stay calming
-		setNoiseVolume(newVolume);
-		if (noiseGainRef.current) {
-			// scale live gain to a fraction so slider adjustments don't instantly become loud
-			const live = Math.min(newVolume, 0.6) * 0.55; // keep live adjustments modest
-			noiseGainRef.current.gain.value = live;
-		}
-	};
+	
 
 	return (
 		<div className="p-8 w-full max-w-5xl mx-auto text-slate-900">
@@ -473,24 +110,33 @@ export default function Motivation() {
 			)}
 
 			{/* Top Row - Pomodoro Clock Centered */}
-			<PomodoroWidget />
+			<div className="flex justify-center mb-6">
+				<PomodoroWidget />
+			</div>
 
 			{/* Bottom Row - Motivational Quotes and White Noise */}
 			<div className="flex gap-6 mb-6">
+				{/* Study Break Suggestions: four categories with predefined suggestions. */}
 				{/* Left Column - Motivational Quotes */}
-				<div className="flex-1">
+				<div className="flex-none" style={{ display: 'flex', flexDirection: 'column', height: 420, width: 520, minWidth: 360, boxSizing: 'border-box', overflow: 'hidden' }}>
 					<h3 className="text-2xl font-semibold text-slate-800 mb-4">Motivational Quotes</h3>
 
 					{/* Quote Card - conditionally shown */}
 					{!showMotivation ? (
 						<div
-							className="rounded-lg flex flex-col items-center justify-center"
+							className="rounded-lg"
 							style={{
-								minHeight: "350px",
+								height: 420,
+								width: '100%',
+								display: 'flex',
+								flexDirection: 'column',
+								alignItems: 'center',
+								justifyContent: 'center',
 								background: "linear-gradient(180deg,#ffffff 0%, #fbfbff 100%)",
 								border: "1px solid rgba(15,23,42,0.04)",
-								padding: "40px 28px",
+								padding: 24,
 								boxShadow: "0 8px 30px rgba(2,6,23,0.06)",
+								boxSizing: 'border-box'
 							}}
 						>
 							<h3 className="text-2xl font-semibold text-slate-800 mb-2 text-center">Need a boost?</h3>
@@ -498,7 +144,18 @@ export default function Motivation() {
 								Get inspired with a motivational quote to keep you focused and energized
 							</p>
 							<button
-								onClick={() => setShowMotivation(true)}
+								onClick={async () => {
+									setShowMotivation(true)
+									try {
+										const q = await getRandomQuote()
+										const text = typeof q.text === 'string' ? q.text : ''
+										const author = typeof q.author === 'string' && q.author ? ` - ${q.author}` : ''
+										setQuote((text + author) || (quotes.current[0] ?? ''))
+									} catch {
+										const i = Math.floor(Math.random() * quotes.current.length)
+										setQuote(quotes.current[i] ?? quotes.current[0] ?? '')
+									}
+								}}
 								className="px-10 py-4 rounded-full text-white text-xl font-bold shadow-lg hover:scale-105 transition transform duration-200"
 								style={{
 									background: "linear-gradient(90deg,#f59e0b,#ef476f)",
@@ -510,25 +167,36 @@ export default function Motivation() {
 						</div>
 					) : (
 						<div
-							className="bg-white rounded-lg p-6"
+							className="bg-white rounded-lg"
 							style={{
-								minHeight: "350px",
+								height: 420,
+								width: '100%',
 								boxSizing: "border-box",
-								overflow: "hidden",
+								overflow: "visible",
 								background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+								display: 'flex',
+								flexDirection: 'column',
+								padding: 20
 							}}
 						>
-							<div style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "space-between" }}>
-								<div>
-									<div style={{ textAlign: "center", marginBottom: "12px", fontSize: "32px" }}>✨</div>
-									<h3 className="text-xl font-medium mb-4 text-slate-800 text-center">Today's Inspiration</h3>
-									<div style={{
-										background: "linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)",
-										border: "2px solid #e0e7ff",
-										borderRadius: "12px",
-										padding: "20px 16px",
-										marginBottom: "16px",
-									}}>
+							<div style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: 'space-between' }}>
+								<div style={{ textAlign: "center", marginBottom: "8px", fontSize: "28px" }}>✨</div>
+								<h3 className="text-xl font-medium mb-3 text-slate-800 text-center">Today's Inspiration</h3>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    	<div style={{
+                                 		background: "linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)",
+                                 		border: "2px solid #e0e7ff",
+                                 		borderRadius: 12,
+                                 		padding: 12,
+                                 		width: '100%',
+                                 		height: 100,
+                                 		display: 'flex',
+                                 		alignItems: 'center',
+                                 		justifyContent: 'center',
+                                 		boxSizing: 'border-box',
+                                 		flex: 'none',
+                                 		overflowY: 'auto'
+                                 	}}>
 										<p
 											className="italic text-center"
 											style={{
@@ -537,9 +205,11 @@ export default function Motivation() {
 												backgroundClip: "text",
 												color: "transparent",
 												animation: "fadeIn 1.5s ease-in-out",
-												fontSize: "18px",
-												lineHeight: "1.6",
+												fontSize: "16px",
+												lineHeight: "1.5",
 												fontWeight: "500",
+												margin: 0,
+												padding: 0,
 											}}
 										>
 											"{quote}"
@@ -550,20 +220,20 @@ export default function Motivation() {
 								<div>
 									<div style={{
 										textAlign: "center",
-										marginBottom: "16px",
-										padding: "12px",
+										marginBottom: "12px",
+										padding: "10px",
 										background: "transparent",
 										borderRadius: "8px",
-										fontSize: "14px",
+										fontSize: "13px",
 										color: "#000000",
 										fontWeight: "500",
 										animation: "fadeIn 2s ease-in-out"
 									}}>
-										You are capable of amazing things! Keep pushing forward. 💪
+									You are capable of amazing things! Keep pushing forward. 💪
 									</div>
 
 									<div className="flex gap-2 justify-center flex-wrap">
-										<button onClick={newQuote} className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition transform hover:scale-105">
+										<button onClick={newQuote} className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition transform hover:scale-105">
 											✨ New Quote
 										</button>
 										<button
@@ -574,13 +244,13 @@ export default function Motivation() {
 													setTimeout(() => setShowToast(false), 2000);
 												}
 											}}
-											className="px-4 py-2 rounded bg-zinc-600 hover:bg-zinc-700 text-white text-sm font-medium transition transform hover:scale-105"
+											className="px-3 py-2 rounded bg-zinc-600 hover:bg-zinc-700 text-white text-sm font-medium transition transform hover:scale-105"
 										>
 											📋 Copy
 										</button>
 										<button
 											onClick={() => setShowMotivation(false)}
-											className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition transform hover:scale-105"
+											className="px-3 py-2 rounded bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition transform hover:scale-105"
 										>
 											← Back
 										</button>
@@ -591,113 +261,173 @@ export default function Motivation() {
 					)}
 				</div>
 
-				{/* Right Column - White Noise */}
-				<div className="flex-1">
-					<h3 className="text-2xl font-semibold text-slate-800 mb-4">White Noise</h3>
-					{/* White Noise Cover - conditionally shown */}
-					{!showNoisePanel ? (
+				{/* Right Column - Study Break Suggestions (replaces white noise) */}
+				<div className="flex-none" style={{ display: 'flex', flexDirection: 'column', height: 420, width: 520, minWidth: 360, boxSizing: 'border-box', overflow: 'hidden' }}>
+					<h3 className="text-2xl font-semibold text-slate-800 mb-4">Study Break Suggestions</h3>
+					{!showBreaksPanel ? (
 						<div
-							className="rounded-lg flex flex-col items-center justify-center"
+							className="rounded-lg"
 							style={{
-								minHeight: "350px",
-								background: "linear-gradient(180deg,#f0f9ff 0%, #fef3c7 100%)",
+								height: 420,
+								width: '100%',
+								display: 'flex',
+								flexDirection: 'column',
+								alignItems: 'center',
+								justifyContent: 'center',
+								background: "linear-gradient(180deg,#ffffff 0%, #f8fafc 100%)",
 								border: "1px solid rgba(15,23,42,0.04)",
-								padding: "40px 28px",
+								padding: 24,
 								boxShadow: "0 8px 30px rgba(2,6,23,0.06)",
+								boxSizing: 'border-box'
 							}}
 						>
-							<h3 className="text-2xl font-semibold text-slate-800 mb-2 text-center">Ready to focus?</h3>
-							<p className="text-slate-600 text-center mb-6 max-w-sm">
-								Immerse yourself in calming white noise to enhance concentration
-							</p>
+							<h3 className="text-2xl font-semibold text-slate-800 mb-2 text-center">Take a Break</h3>
+							<p className="text-slate-600 text-center mb-6 max-w-sm">Short, focused break ideas to refresh your body and mind</p>
 							<button
-								onClick={() => setShowNoisePanel(true)}
+								onClick={() => setShowBreaksPanel(true)}
 								className="px-10 py-4 rounded-full text-white text-xl font-bold shadow-lg hover:scale-105 transition transform duration-200"
-								style={{
-									background: "linear-gradient(90deg,#3b82f6,#1e40af)",
-									border: "none",
-								}}
+								style={{ background: "linear-gradient(90deg,#06b6d4,#0ea5e9)", border: "none" }}
 							>
-								🎵 Activate Noise 🎵
+								☕ Show Breaks
 							</button>
 						</div>
 					) : (
-						<div
-							className="bg-white rounded-lg p-6 shadow-lg"
-							style={{
-								minHeight: "350px",
-								boxSizing: "border-box",
-								display: "flex",
-								flexDirection: "column",
-								justifyContent: "space-between",
-							}}
-						>
-							<div>
-								<h3 className="text-xl font-medium mb-4 text-slate-800 text-center">Tune In Your Sound</h3>
-								<p className="text-slate-600 mb-6 text-sm text-center">
-									Drown out distractions and drift into flow — pick a calming sound and fine‑tune the volume until it feels just right.
-								</p>
+						<div className="rounded-lg p-6 bg-white shadow-sm flex flex-col justify-between" style={{ height: 420, width: '100%', boxSizing: 'border-box', border: "1px solid rgba(15,23,42,0.04)", paddingBottom: 56 }}>
+							<div className="text-center" style={{ paddingBottom: 8 }}>
+								<div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-yellow-50 mx-auto mb-3">
+									<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" role="img" aria-hidden="false">
+										<title>Sun icon</title>
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v3m0 12v3m9-9h-3M6 12H3m15.364-6.364l-2.121 2.121M8.757 15.243l-2.121 2.121m12.728 0l-2.121-2.121M8.757 8.757L6.636 6.636" />
+									</svg>
+								</div>
+								<h3 className="text-xl font-semibold text-slate-800">Moments to Recharge</h3>
 							</div>
 
-							<div>
-								<div className="flex gap-3 items-center mb-4">
-									<select
-										value={noiseType}
-										onChange={(e) => {
-											const next = e.target.value as NoiseKind;
-											// reflect new selection in UI immediately
-											setNoiseType(next);
-											// if currently playing, crossfade smoothly into the new selection
-											if (isNoiseActive) {
-												switchNoise(next);
-											} else {
-												// remain stopped; user can press Play to start the newly-selected noise
+							<div className="mt-4" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+								<div className="flex gap-3 justify-center items-center mb-2 flex-nowrap overflow-x-auto" style={{ paddingTop: 6 }}>
+									<button
+										onClick={async () => {
+											const i = (healthIndex + 1) % healthSuggestions.length
+											setHealthIndex(i)
+											setActiveCategory('Health')
+											try {
+												const res = await getStudyBreak('Health')
+												const s = res?.suggestion
+												setCurrentSuggestion({ category: s?.category ?? 'Health', text: s?.text ?? healthSuggestions[i] ?? '' })
+											} catch {
+												setCurrentSuggestion({ category: 'Health', text: healthSuggestions[i] ?? '' })
 											}
 										}}
-										className="px-3 py-2 border border-gray-200 rounded-md"
+										className={`px-4 py-2 rounded-full text-sm font-medium ${activeCategory === 'Health' ? 'bg-emerald-700 text-white shadow' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
 									>
-										<option value="pink">Pink Noise (balanced)</option>
-										<option value="rain">Rain Sounds</option>
-										<option value="forest">Forest Ambience</option>
-										<option value="ocean">Ocean Waves</option>
-									</select>
-
-									<button
-										onClick={() => {
-											if (isNoiseActive) stopNoise();
-											else startNoise(noiseType);
-										}}
-										className={`px-6 py-3 rounded-lg text-white font-semibold shadow-lg hover:scale-105 transition transform duration-200 ${isNoiseActive ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
-											}`}
-									>
-										{isNoiseActive ? "⏹ Stop" : "▶ Play"}
+										Health
 									</button>
 
-									<div className="flex-grow flex items-center gap-2">
-										<span className="text-xs text-slate-600">Vol:</span>
-										<input
-											type="range"
-											min="0"
-											max="1"
-											step="0.1"
-											value={noiseVolume}
-											onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-											className="flex-grow cursor-pointer"
-											disabled={!isNoiseActive}
-										/>
-										<span className="text-xs text-slate-600 w-10">{Math.round(noiseVolume * 100)}%</span>
-									</div>
+									<button
+										onClick={async () => {
+											const i = (mentalIndex + 1) % mentalSuggestions.length
+											setMentalIndex(i)
+											setActiveCategory('Mental')
+											try {
+												const res = await getStudyBreak('Mental')
+												const s = res?.suggestion
+												setCurrentSuggestion({ category: s?.category ?? 'Mental', text: s?.text ?? mentalSuggestions[i] ?? '' })
+											} catch {
+												setCurrentSuggestion({ category: 'Mental', text: mentalSuggestions[i] ?? '' })
+											}
+										}}
+										className={`px-4 py-2 rounded-full text-sm font-medium ${activeCategory === 'Mental' ? 'bg-indigo-700 text-white shadow' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'}`}
+									>
+										Mental
+									</button>
+
+									<button
+										onClick={async () => {
+											const i = (envIndex + 1) % envSuggestions.length
+											setEnvIndex(i)
+											setActiveCategory('Environment')
+											try {
+												const res = await getStudyBreak('Environment')
+												const s = res?.suggestion
+												setCurrentSuggestion({ category: s?.category ?? 'Environment', text: s?.text ?? envSuggestions[i] ?? '' })
+											} catch {
+												setCurrentSuggestion({ category: 'Environment', text: envSuggestions[i] ?? '' })
+											}
+										}}
+										className={`px-4 py-2 rounded-full text-sm font-medium ${activeCategory === 'Environment' ? 'bg-sky-700 text-white shadow' : 'bg-sky-100 text-sky-700 hover:bg-sky-200'}`}
+									>
+										Environment
+									</button>
+
+									<button
+										onClick={async () => {
+											const i = (energyIndex + 1) % energySuggestions.length
+											setEnergyIndex(i)
+											setActiveCategory('Quick Energy')
+											try {
+												const res = await getStudyBreak('Quick Energy')
+												const s = res?.suggestion
+												setCurrentSuggestion({ category: s?.category ?? 'Quick Energy', text: s?.text ?? energySuggestions[i] ?? '' })
+											} catch {
+												setCurrentSuggestion({ category: 'Quick Energy', text: energySuggestions[i] ?? '' })
+											}
+										}}
+										className={`px-4 py-2 rounded-full text-sm font-medium ${activeCategory === 'Quick Energy' ? 'bg-amber-600 text-white shadow' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}
+									>
+										Quick Energy
+									</button>
 								</div>
 
-								<button
-									onClick={() => setShowNoisePanel(false)}
-									className="w-full px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-slate-700 font-semibold transition"
-								>
-									Back
-								</button>
+								<div className="mx-auto max-w-lg" style={{ display: 'flex', flexDirection: 'column', height: 120, minHeight: 120, flex: 'none' }}>
+									<div
+										className="rounded-lg text-center"
+										style={{
+											display: 'flex',
+											alignItems: 'center',
+											justifyContent: 'center',
+											background: 'linear-gradient(135deg, #f0f9ff 0%, #fef3c7 100%)',
+											border: '2px solid #e0e7ff',
+											borderRadius: 12,
+											padding: '12px',
+											marginTop: 6,
+											marginBottom: 6,
+											height: 100,
+											overflowY: 'auto',
+											width: '100%',
+											flex: 'none'
+										}}
+									>
+										<div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '4px 8px' }}>
+											{currentSuggestion ? (
+												<div style={{ maxWidth: 420 }}>
+													<div className="text-xs text-slate-500 mb-1" style={{ fontWeight: 700 }}>{currentSuggestion.category}</div>
+													<div className="text-md text-slate-800" style={{ fontSize: 15, lineHeight: 1.4, textAlign: 'center' }}>{currentSuggestion.text}</div>
+												</div>
+											) : (
+												<div className="text-sm text-slate-600">Choose a category to see a short break suggestion.</div>
+											)}
+										</div>
+									</div>
+								</div>
+							</div>
 
-								<div className="text-xs text-slate-500 p-2 bg-blue-50 rounded mt-3">
-									💡 Tip: Start white noise at low volume and gradually increase for optimal focus.
+							<div className="mt-2 text-center" style={{ paddingTop: 0, marginTop: -12, marginBottom: 28, paddingBottom: 12 }}>
+								<div className="text-sm font-semibold text-slate-700" style={{ fontStyle: 'italic', marginBottom: 12 }}>Small breaks recharge great minds.</div>
+								<div className="flex justify-center gap-3" style={{ marginTop: 6, marginBottom: 12 }}>
+									<button
+										onClick={() => {
+											if (currentSuggestion && navigator.clipboard) {
+												navigator.clipboard.writeText(currentSuggestion.text);
+												setShowToast(true);
+												setTimeout(() => setShowToast(false), 2000);
+											}
+										}}
+										className="px-6 py-2 rounded-md bg-zinc-800 hover:bg-zinc-900 text-white text-sm font-medium shadow"
+										style={{ minWidth: 110 }}
+									>
+										Copy
+									</button>
+									<button onClick={() => setShowBreaksPanel(false)} className="px-6 py-2 rounded-md bg-white border border-emerald-100 hover:bg-emerald-50 text-emerald-800 text-sm font-medium" style={{ minWidth: 110 }}>Back</button>
 								</div>
 							</div>
 						</div>

@@ -1,4 +1,3 @@
-import React from "react"
 import { usePomodoro } from "../contexts/PomodoroContext"
 
 export default function PomodoroWidget() {
@@ -37,7 +36,7 @@ export default function PomodoroWidget() {
 
   return (
     <div className="flex justify-center mb-6">
-      <div style={{ width: "50%" }}>
+      <div style={{ width: 'min(720px, 100%)' }}>
         <h3 className="text-2xl font-semibold text-slate-800 mb-4 text-center">Pomodoro Clock</h3>
         <div
           className="bg-white rounded-lg p-6 shadow-lg"

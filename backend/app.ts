@@ -19,6 +19,7 @@ import tasksRoutes from "./routes/tasks.js"
 import pomodoro from "./routes/pomodoro.js"
 import quotes from "./routes/quotes.js"
 import noiseFiles from "./routes/noiseFiles.js"
+import studyBreaks from "./routes/studyBreaks.js"
 import streak from "./routes/streak.js"
 import wordleRoutes from "./routes/wordle.js"
 
@@ -81,6 +82,7 @@ app.use("/api/tasks", tasksRoutes)
 app.use("/api/pomodoro", pomodoro)
 app.use("/api/quotes", quotes)
 app.use("/api/noise", noiseFiles)
+app.use("/api/study-breaks", studyBreaks)
 app.use("/api/streak", streak)
 app.use("/api/wordle", wordleRoutes)
 

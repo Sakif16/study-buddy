@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx watch app.ts",
     "seed:quotes": "tsx ./scripts/seedQuotes.mjs",
+    "seed:study-breaks": "node ./scripts/seedStudyBreaks.mjs",
     "postinstall": "prisma generate"
   },
   "packageManager": "pnpm@10.14.0",

@@ -60,3 +60,21 @@ export async function getTasks() {
   if (!res.ok) throw new Error("failed to get tasks")
   return res.json()
 }
+
+export async function getStudyBreak(category?: string) {
+  const url = new URL("http://localhost:3000/api/study-breaks/random")
+  if (category) url.searchParams.set("category", category)
+  const res = await fetch(url.toString(), {
+    credentials: "include",
+  })
+  if (!res.ok) throw new Error("failed to get study break")
+  return res.json()
+}
+
+export async function getRandomQuote() {
+  const res = await fetch("http://localhost:3000/api/quotes/random", {
+    credentials: "include",
+  })
+  if (!res.ok) throw new Error("failed to get quote")
+  return res.json()
+}
