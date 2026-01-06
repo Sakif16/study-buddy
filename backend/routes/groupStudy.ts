@@ -348,7 +348,9 @@ router.post(`/:id/upload`, async (req, res) => {
         }
         if (!req.file) return res.status(400).json({ success: false, error: 'no file uploaded' })
         const file = req.file
-        const publicPath = `/public/uploads/${encodeURIComponent(file.filename)}`
+        // store a protected file path that will be served through a route
+        // which enforces group membership checks
+        const publicPath = `/groups/${id}/file/${encodeURIComponent(file.filename)}`
 
         // create message with content set to public path
         const created = await db.message.create({
@@ -390,3 +392,33 @@ router.get("/", async (req, res) => {
 })
 
 export default router
+
+// GET /:id/file/:filename - serve uploaded file only to group members
+router.get(`/:id/file/:filename`, async (req, res) => {
+  try {
+    if (!req.session?.user) throw new Error('not authenticated')
+    const { id } = req.params
+    const userId = req.session!.user.id
+
+    // ensure user is member
+    const membership = await db.groupMember.findFirst({ where: { groupId: id, userId } })
+    if (!membership) return res.status(403).json({ success: false, message: 'forbidden' })
+
+    // sanitize filename to avoid path traversal
+    const raw = req.params.filename || ''
+    const filename = path.basename(decodeURIComponent(raw))
+    const fullPath = path.join(uploadsDir, filename)
+
+    // check file exists
+    try {
+      await fs.promises.access(fullPath)
+    } catch (e) {
+      return res.status(404).json({ success: false, message: 'file not found' })
+    }
+
+    return res.sendFile(fullPath)
+  } catch (err) {
+    console.error('[groups] file serve error', err)
+    return res.status(500).json({ success: false, message: 'server error' })
+  }
+})
