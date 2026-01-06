@@ -42,6 +42,11 @@ export default function Notes() {
   const [newCategoryColor, setNewCategoryColor] = useState('bg-indigo-500');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
+  // Version history UI state
+  const [versions, setVersions] = useState<any[]>([]);
+  const [isVersionsOpen, setIsVersionsOpen] = useState(false);
+  const [activeVersion, setActiveVersion] = useState<any | null>(null);
+
   const COLORS = [
     'bg-blue-500',
     'bg-purple-500',
@@ -196,6 +201,75 @@ export default function Notes() {
 
     setIsEditing(false)
   };
+
+  // Version helpers
+  const fetchVersions = async (noteId: string) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/notes/${noteId}/versions`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setVersions(Array.isArray(data) ? data : [])
+        setActiveVersion(null)
+        setIsVersionsOpen(true)
+      } else {
+        console.error('failed to fetch versions', await res.text())
+        setVersions([])
+        setIsVersionsOpen(true)
+      }
+    } catch (e) {
+      console.error('fetchVersions error', e)
+      setVersions([])
+      setIsVersionsOpen(true)
+    }
+  }
+
+  const viewVersion = async (noteId: string, vid: string) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/notes/${noteId}/versions/${vid}`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setActiveVersion(data)
+      } else {
+        console.error('failed to fetch version', await res.text())
+      }
+    } catch (e) {
+      console.error('viewVersion error', e)
+    }
+  }
+
+  const restoreVersion = async (noteId: string, vid: string) => {
+    if (!confirm('Restore this version? This will overwrite the current note.')) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/notes/${noteId}/versions/${vid}/restore`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (res.ok) {
+        const n = await res.json()
+        const serverNote: Note = {
+          id: n.id,
+          title: n.title,
+          content: n.content ?? '',
+          category: n.category ?? '1',
+          createdAt: new Date(n.createdAt),
+          updatedAt: new Date(n.updatedAt),
+          isFavorite: typeof n.isFavorite === 'boolean' ? n.isFavorite : false,
+          attachments: Array.isArray(n.attachments) ? n.attachments : [],
+        }
+        setNotes(notes.map((it) => (it.id === serverNote.id ? serverNote : it)))
+        setSelectedNote(serverNote)
+        setIsVersionsOpen(false)
+        setActiveVersion(null)
+        alert('Version restored')
+      } else {
+        console.error('failed to restore', await res.text())
+        alert('Failed to restore version')
+      }
+    } catch (e) {
+      console.error('restore error', e)
+      alert('Failed to restore version')
+    }
+  }
 
   // Attachments upload helper
   const uploadAttachments = async (files: FileList | null) => {
@@ -578,6 +652,15 @@ export default function Notes() {
                             >
                               <Edit2 size={18} />
                             </button>
+
+                            <button
+                              onClick={() => fetchVersions(selectedNote.id)}
+                              className="bg-gray-200 hover:bg-gray-300 text-black p-2 rounded-lg transition flex items-center gap-1"
+                              title="Version history"
+                            >
+                              History
+                            </button>
+
                             <button
                               onClick={() => deleteNote(selectedNote.id)}
                               className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg transition flex items-center gap-1"
@@ -693,6 +776,50 @@ export default function Notes() {
           </div>
         </div>
       </div>
+
+      {/* Version history modal */}
+      {isVersionsOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white text-black rounded-lg max-w-2xl w-full p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold">Version History</h3>
+              <div className="flex items-center gap-2">
+                <button onClick={() => {
+                  setIsVersionsOpen(false);
+                  setActiveVersion(null);
+                }} className="px-2 py-1 bg-gray-200 rounded">Close</button>
+              </div>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto">
+              {versions.length === 0 ? <p className="text-sm text-gray-600">No versions available</p> : (
+                <ul className="space-y-2">
+                  {versions.map((v: any) => (
+                    <li key={v.id} className="p-2 border rounded flex items-start justify-between">
+                      <div>
+                        <div className="text-sm font-medium">{v.title || 'Untitled'}</div>
+                        <div className="text-xs text-gray-600">{new Date(v.createdAt).toLocaleString()}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => viewVersion(selectedNote!.id, v.id)} className="px-2 py-1 bg-gray-100 rounded text-sm">View</button>
+                        <button onClick={() => restoreVersion(selectedNote!.id, v.id)} className="px-2 py-1 bg-red-500 text-white rounded text-sm">Restore</button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {activeVersion && (
+              <div className="mt-4 p-3 border rounded bg-gray-50">
+                <h4 className="font-medium mb-1">{activeVersion.title || 'Untitled'}</h4>
+                <div className="text-xs text-gray-600 mb-2">{new Date(activeVersion.createdAt).toLocaleString()}</div>
+                <div className="whitespace-pre-wrap text-sm">{activeVersion.content || <em>No content</em>}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
