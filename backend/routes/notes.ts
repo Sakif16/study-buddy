@@ -19,14 +19,16 @@ const requireAuth = (
 
 router.use(requireAuth)
 
-// storage directory: backend/public/uploads
+// storage directories
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const uploadsDir = path.join(__dirname, "..", "public", "uploads")
+const versionsRoot = path.join(__dirname, "..", "data", "note-versions")
 try {
   fs.mkdirSync(uploadsDir, { recursive: true })
+  fs.mkdirSync(versionsRoot, { recursive: true })
 } catch (e) {
-  console.error("failed to ensure uploads dir", e)
+  console.error("failed to ensure dirs", e)
 }
 
 function listAttachmentsForNote(noteId: string) {
@@ -37,6 +39,66 @@ function listAttachmentsForNote(noteId: string) {
   } catch (e) {
     console.error('listAttachmentsForNote error', e)
     return []
+  }
+}
+
+function getVersionsDir(noteId: string) {
+  return path.join(versionsRoot, noteId)
+}
+
+function saveNoteVersion(note: any) {
+  try {
+    const dir = getVersionsDir(note.id)
+    fs.mkdirSync(dir, { recursive: true })
+    const ts = Date.now().toString()
+    const payload = {
+      id: ts,
+      noteId: note.id,
+      title: note.title,
+      content: note.content ?? null,
+      category: note.category ?? null,
+      userId: note.userId,
+      createdAt: new Date().toISOString(),
+    }
+    const filename = path.join(dir, `${ts}.json`)
+    fs.writeFileSync(filename, JSON.stringify(payload, null, 2), "utf-8")
+    return payload
+  } catch (e) {
+    console.error("failed to save note version", e)
+    return null
+  }
+}
+
+function listNoteVersions(noteId: string) {
+  try {
+    const dir = getVersionsDir(noteId)
+    if (!fs.existsSync(dir)) return []
+    const files = fs.readdirSync(dir).filter(f => f.endsWith(".json"))
+    const versions = files.map(f => {
+      try {
+        const raw = fs.readFileSync(path.join(dir, f), "utf-8")
+        const json = JSON.parse(raw)
+        return json
+      } catch (e) { return null }
+    }).filter(Boolean)
+    // sort desc
+    versions.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    return versions
+  } catch (e) {
+    console.error("listNoteVersions error", e)
+    return []
+  }
+}
+
+function readNoteVersion(noteId: string, vid: string) {
+  try {
+    const file = path.join(getVersionsDir(noteId), `${vid}.json`)
+    if (!fs.existsSync(file)) return null
+    const raw = fs.readFileSync(file, "utf-8")
+    return JSON.parse(raw)
+  } catch (e) {
+    console.error('readNoteVersion error', e)
+    return null
   }
 }
 
@@ -56,7 +118,6 @@ router.get("/", async (req, res) => {
       orderBy: { createdAt: "desc" },
     })
 
-    // Include `isFavorite` from DB (default false if not present) and attachments
     const mapped = notes.map((n) => ({
       ...n,
       isFavorite: (n as any).isFavorite ?? false,
@@ -79,7 +140,6 @@ router.post("/", async (req, res) => {
       data: { ...payload, userId } as any,
     })
 
-    // include `isFavorite` from DB (default false) and empty attachments
     res
       .status(201)
       .json({ ...created, isFavorite: (created as any).isFavorite ?? false, attachments: [] })
@@ -104,6 +164,13 @@ router.put("/:id", async (req, res) => {
     })
     if (!note) return res.status(404).json({ error: "not found" })
 
+    // save previous version to disk
+    try {
+      saveNoteVersion(note)
+    } catch (e) {
+      console.error('failed to persist previous note version', e)
+    }
+
     const payload = NoteSchema.partial().parse(req.body)
     const updated = await db.note.update({
       where: { id: req.params.id },
@@ -118,6 +185,72 @@ router.put("/:id", async (req, res) => {
   } catch (err) {
     console.error("[notes] update error", err)
     res.status(400).json({ error: "failed to update note" })
+  }
+})
+
+// versions: list, get, restore
+
+// GET /api/notes/:id/versions
+router.get("/:id/versions", async (req, res) => {
+  try {
+    if (!req.session.user) throw new Error("not authenticated")
+    const userId = req.session!.user.id
+    const note = await db.note.findFirst({ where: { id: req.params.id, userId } })
+    if (!note) return res.status(404).json({ error: "not found" })
+    const versions = listNoteVersions(note.id)
+    res.json(versions)
+  } catch (e) {
+    console.error("[notes] list versions error", e)
+    res.status(500).json({ error: "failed to list versions" })
+  }
+})
+
+// GET /api/notes/:id/versions/:vid
+router.get("/:id/versions/:vid", async (req, res) => {
+  try {
+    if (!req.session.user) throw new Error("not authenticated")
+    const userId = req.session!.user.id
+    const note = await db.note.findFirst({ where: { id: req.params.id, userId } })
+    if (!note) return res.status(404).json({ error: "not found" })
+    const v = readNoteVersion(note.id, req.params.vid)
+    if (!v) return res.status(404).json({ error: "version not found" })
+    res.json(v)
+  } catch (e) {
+    console.error("[notes] get version error", e)
+    res.status(500).json({ error: "failed to get version" })
+  }
+})
+
+// POST /api/notes/:id/versions/:vid/restore
+router.post("/:id/versions/:vid/restore", async (req, res) => {
+  try {
+    if (!req.session.user) throw new Error("not authenticated")
+    const userId = req.session!.user.id
+    const note = await db.note.findFirst({ where: { id: req.params.id, userId } })
+    if (!note) return res.status(404).json({ error: "not found" })
+    const v = readNoteVersion(note.id, req.params.vid)
+    if (!v) return res.status(404).json({ error: "version not found" })
+
+    // Save current as version before restoring
+    try { saveNoteVersion(note) } catch (e) { console.error('failed to save current before restore', e) }
+
+    const updated = await db.note.update({
+      where: { id: note.id },
+      data: {
+        title: v.title ?? note.title,
+        content: v.content ?? null,
+        category: v.category ?? note.category,
+      } as Prisma.NoteUpdateInput,
+    })
+
+    res.json({
+      ...updated,
+      isFavorite: (updated as any).isFavorite ?? false,
+      attachments: listAttachmentsForNote(updated.id),
+    })
+  } catch (e) {
+    console.error("[notes] restore version error", e)
+    res.status(500).json({ error: "failed to restore version" })
   }
 })
 
@@ -187,7 +320,6 @@ router.delete("/:id", async (req, res) => {
     try {
       const dir = path.join(uploadsDir, note.id)
       if (fs.existsSync(dir)) {
-        // Node 14+ supports rmSync with recursive; fallback to rmdirSync
         if ((fs as any).rmSync) {
           (fs as any).rmSync(dir, { recursive: true, force: true })
         } else {
