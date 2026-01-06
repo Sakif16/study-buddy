@@ -386,7 +386,7 @@ export default function GroupStudy() {
                   <div className="text-sm text-white font-semibold">{m.self ? "You" : m.author} • <span className="text-xs text-white/60">{m.time}</span></div>
                   <div className="text-white font-medium mt-1">
                     {(() => {
-                      const isFile = typeof m.text === 'string' && m.text.startsWith('/public/uploads/')
+                      const isFile = typeof m.text === 'string' && (m.text.startsWith('/public/uploads/') || m.text.startsWith('/groups/'))
                       if (!isFile) return m.text
                       const url = `http://localhost:3000${m.text}`
                       const lower = m.text.toLowerCase()
