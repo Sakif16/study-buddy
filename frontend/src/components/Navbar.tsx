@@ -13,7 +13,6 @@ const defaultLinks = [
   { to: "/streak", label: "Streak" },
   { to: "/missed-tasks", label: "Missed Tasks" },
   { to: "/wordle", label: "Wordle" },
-  { to: "/ai-buddy", label: "Ai Buddy" },
 ]
 
 const adminLinks = [

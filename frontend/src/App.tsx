@@ -18,7 +18,6 @@ import Wordle from "./pages/Wordle"
 import Streak from "./pages/Streak"
 import Motivation from "./pages/Study"
 import GroupStudy from "./pages/GroupStudy"
-import AIBuddy from "./pages/AIBuddy"
 import Charts from "./pages/Charts"
 import Notes from "./pages/Notes"
 import MissedTasks from "./pages/MissedTasks"
@@ -92,7 +91,6 @@ function AppContent() {
                 <Route path="/streak" element={<Streak />} />
                 <Route path="/motivation" element={<Motivation />} />
                 <Route path="/group-study" element={<GroupStudy />} />
-                <Route path="/ai-buddy" element={<AIBuddy />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/charts" element={<Charts />} />
                 <Route path="/notes" element={<Notes />} />
