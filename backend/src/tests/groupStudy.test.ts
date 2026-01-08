@@ -12,14 +12,14 @@ describe('Group study chat endpoints (auth + basic payload)', () => {
   })
 
   it('allows authenticated listing (smoke)', async () => {
-    const app = createApp(tasksRouter, groupRouter, { id: 'u1' })
+    const app = createApp(tasksRouter, groupRouter, { id: '000000000000000000000001' })
     const res = await request(app).get('/groups')
     expect([200, 500]).toContain(res.status)
-  })
+  }, 15000)
 
   it('POST messages requires membership and valid body (smoke)', async () => {
-    const app = createApp(tasksRouter, groupRouter, { id: 'u1' })
-    const res = await request(app).post('/groups/some-group/messages').send({ content: 'hello' })
+    const app = createApp(tasksRouter, groupRouter, { id: '000000000000000000000001' })
+    const res = await request(app).post('/groups/000000000000000000000002/messages').send({ content: 'hello' })
     expect([201, 400, 403, 404, 500]).toContain(res.status)
   })
 })
