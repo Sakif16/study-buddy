@@ -3,6 +3,8 @@
 ##  Intro
 A web-based study management and productivity platform designed to help students organize tasks, improve focus, collaborate with classmates, and build productive study habits.
 
+##  Live Demo
+[https://study-buddy-pqwb.onrender.com](https://study-buddy-pqwb.onrender.com)
 ---
 
 ##  Description
