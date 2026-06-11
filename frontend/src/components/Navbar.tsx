@@ -1,68 +1,66 @@
-import { useContext, useEffect, useRef, useState } from "react"
-import { NavLink, useNavigate } from "react-router-dom"
-import AuthApi from "../AuthApi"
-import { BACKEND_URL } from "../constants"
+import { useContext, useEffect, useRef, useState } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import AuthApi from "../AuthApi";
+import { BACKEND_URL } from "../constants";
 
 const defaultLinks = [
   { to: "/", label: "Home" },
-  { to: "/motivation", label: "Study" },
   { to: "/assignments", label: "Assignments" },
   { to: "/notes", label: "Notes" },
   { to: "/group-study", label: "Group Study" },
   { to: "/charts", label: "Charts" },
-  { to: "/streak", label: "Streak" },
   { to: "/missed-tasks", label: "Missed Tasks" },
   { to: "/wordle", label: "Wordle" },
-]
+];
 
 const adminLinks = [
   { to: "/admin/dashboard", label: "Dashboard" },
   { to: "/admin/feedbacks", label: "User Feedbacks" },
-]
+];
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false)
-  const [userOpen, setUserOpen] = useState(false)
-  const userMenuRef = useRef<HTMLDivElement | null>(null)
-  const authApi = useContext(AuthApi)
-  const navigate = useNavigate()
+  const [open, setOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const authApi = useContext(AuthApi);
+  const navigate = useNavigate();
   // username from auth context (fallback to design placeholder)
-  const username = authApi?.user?.username ?? "Sakif"
+  const username = authApi?.user?.username ?? "Sakif";
 
   const handleLogout = async () => {
     try {
-      await fetch(`${BACKEND_URL}/logout`, { credentials: "include" })
+      await fetch(`${BACKEND_URL}/logout`, { credentials: "include" });
     } catch (err) {
-      console.error("logout failed", err)
+      console.error("logout failed", err);
     } finally {
-      authApi?.setAuth(false)
-      authApi?.setAdmin?.(false)
-      authApi?.setUser(null)
-      setUserOpen(false)
-      setOpen(false)
-      navigate("/auth")
+      authApi?.setAuth(false);
+      authApi?.setAdmin?.(false);
+      authApi?.setUser(null);
+      setUserOpen(false);
+      setOpen(false);
+      navigate("/auth");
     }
-  }
+  };
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
-      if (!userMenuRef.current) return
+      if (!userMenuRef.current) return;
       if (!userMenuRef.current.contains(e.target as Node)) {
-        setUserOpen(false)
+        setUserOpen(false);
       }
-    }
+    };
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setUserOpen(false)
-    }
+      if (e.key === "Escape") setUserOpen(false);
+    };
 
-    document.addEventListener("mousedown", onDocClick)
-    document.addEventListener("keydown", onKey)
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onDocClick)
-      document.removeEventListener("keydown", onKey)
-    }
-  }, [])
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
   return (
     <header className="bg-[#DAF9EF] text-black relative">
@@ -111,8 +109,8 @@ export default function Navbar() {
             <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg text-black z-20">
               <button
                 onClick={() => {
-                  setUserOpen(false)
-                  navigate("/profile")
+                  setUserOpen(false);
+                  navigate("/profile");
                 }}
                 className="w-full text-left px-4 py-2 hover:bg-gray-100"
               >
@@ -187,5 +185,5 @@ export default function Navbar() {
         </div>
       )}
     </header>
-  )
+  );
 }
